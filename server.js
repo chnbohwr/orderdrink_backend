@@ -13,7 +13,7 @@ var SampleApp = function () {
 
     //  Scope.
     var self = this;
-    var shop, company, menu;
+    var shop, company, menu, user, comment;
 
 
 
@@ -99,6 +99,8 @@ var SampleApp = function () {
             shop = lokidb.getCollection('shop');
             company = lokidb.getCollection('company');
             menu = lokidb.getCollection('menu');
+            user = lokidb.getCollection('user');
+            comment = lokidb.getCollection('comment');
 
             if (shop === null) {
                 shop = lokidb.addCollection('shop');
@@ -109,10 +111,18 @@ var SampleApp = function () {
             if (menu === null) {
                 menu = lokidb.addCollection('menu');
             }
+            if (comment === null) {
+                comment = lokidb.addCollection('comment');
+            }
+            if (user === null) {
+                user = lokidb.addCollection('user');
+            }
 
             console.log('load shop items', shop.idIndex.length);
             console.log('load company items', company.idIndex.length);
             console.log('load menu items', menu.idIndex.length);
+            console.log('load user items', user.idIndex.length);
+            console.log('load comment items', comment.idIndex.length);
         });
     };
 
@@ -127,6 +137,7 @@ var SampleApp = function () {
         }));
         app.get('/api/location/', getShopInfoByLocation);
         app.get('/api/shop/:shop_id/menu/', getMenuByShopId);
+
     };
 
 
@@ -156,12 +167,12 @@ var SampleApp = function () {
 
     function getShopInfoByLocation(req, res) {
         console.time('locationFindShop');
-        console.log(req.body);
         var lat = req.query.lat || 0;
         var lng = req.query.lng || 0;
         var offset = req.query.offset || 0;
+        console.log('getShopInfoByLocation', req.query);
         var return_list = shop.chain().find().sort(sortByLocation).offset(offset).limit(30).data();
-
+        //根據GPS資訊重新排列
         function sortByLocation(obj1, obj2) {
             var dif_obj1 = Math.abs(obj1.lat - lat) + Math.abs(obj1.lng - lng);
             var dif_obj2 = Math.abs(obj2.lat - lat) + Math.abs(obj2.lng - lng);
@@ -173,6 +184,7 @@ var SampleApp = function () {
             }
             return 0;
         }
+
         console.timeEnd('locationFindShop');
         res.json(return_list);
     }
@@ -184,6 +196,8 @@ var SampleApp = function () {
         console.log(shop_data);
         res.json({});
     }
+
+    function checkToken(req, res, next) {}
 
 }; /*  Sample Application.  */
 
