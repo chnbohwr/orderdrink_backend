@@ -109,7 +109,7 @@ var SampleApp = function () {
 
         self.routes['/'] = function (req, res) {
             res.setHeader('Content-Type', 'text/html');
-            res.send('<div>good job</div>');
+            res.send('<div>good regerg job</div>');
         };
     };
 
