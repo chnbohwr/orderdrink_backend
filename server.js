@@ -241,6 +241,7 @@ var SampleApp = function () {
         var user_data = user.findOne({
             email: email
         });
+
         //檢查使用者資料有沒有找到
         if (user_data) {
             //配對密碼有無錯誤
@@ -263,17 +264,71 @@ var SampleApp = function () {
         }
     }
 
+    //上傳評論
+    function uploadComment(req, res) {
+        //尋找使用者ID
+        var user_token = req.headers.token;
+        var user_data = user.findOne({
+            token: user_token
+        });
+        var user_id = user_data.$loki;
+        //評論文字
+        var comment_text = req.body.comment_text;\
+        //店家ID
+        var shop_id = req.body.shop_id;
+        //星星評分數目
+        var star = req.body.star;
+        var comment_data = {
+            user:
+        }
+    }
+
+    //刪除評論
+    function deleteComment(req, res) {
+        var comment_id = req.body.comment_id;
+
+    }
+
+    //
 
 
 }; /*  Sample Application.  */
 
 
+/**
+ * @class DatabaseBackup
+ */
+var DatabaseBackup = function () {
+    /**
+     * 啟動監看db自動備份
+     * @method start
+     */
+    this.start = function start() {
 
+    };
+    /**
+     * @private
+     * @method copyFile
+     * @param {string} source
+     * @param {string} target
+     * source and trarget means file path
+     */
+    function copyFile(source, target) {
+        return new Promise(function (resolve, reject) {
+            var rd = fs.createReadStream(source);
+            rd.on('error', reject);
+            var wr = fs.createWriteStream(target);
+            wr.on('error', reject);
+            wr.on('close', resolve);
+            rd.pipe(wr);
+        });
+    }
+};
 
 
 /**
- *  main():  Main code.
+ *  主程式
  */
-var zapp = new SampleApp();
-zapp.initialize();
-zapp.start();
+var mainApp = new SampleApp();
+mainApp.initialize();
+mainApp.start();
