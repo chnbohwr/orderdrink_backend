@@ -1,9 +1,10 @@
+'use strict'
 //  OpenShift sample Node application
 var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
 var fs = require('fs');
-var loki = require('lokijs')
+var loki = require('lokijs');
 var lokidb = new loki('mydatabase.json');
 var uuid = require('node-uuid');
 var sha256 = require('sha256');
@@ -122,19 +123,7 @@ var SampleApp = function () {
         });
     };
 
-    /**
-     *  Initialize the server (express) and create the routes and register
-     *  the handlers.
-     */
-    self.initializeServer = function () {
-        app.use(bodyParser.json()); // to support JSON-encoded bodies
-        app.use(bodyParser.urlencoded({ // to support URL-encoded bodies
-            extended: true
-        }));
-        app.get('/api/location/', getShopInfoByLocation);
-        app.get('/api/shop/:shop_id/menu/', getMenuByShopId);
 
-    };
 
     /**
      *  Initializes the sample application.
@@ -157,6 +146,22 @@ var SampleApp = function () {
             console.log('%s: Node server started on %s:%d ...',
                 Date(Date.now()), self.ipaddress, self.port);
         });
+    };
+
+    /**
+     *  Initialize the server (express) and create the routes and register
+     *  the handlers.
+     */
+    self.initializeServer = function () {
+        app.use(bodyParser.json()); // to support JSON-encoded bodies
+        app.use(bodyParser.urlencoded({ // to support URL-encoded bodies
+            extended: true
+        }));
+        app.use(accewssOrigin);
+        app.get('/api/location/', checkToken, getShopInfoByLocation);
+        app.get('/api/shop/:shop_id/menu/', checkToken, getMenuByShopId);
+        app.post('/signup/', signup);
+        app.post('/login/', login);
     };
 
     function getShopInfoByLocation(req, res) {
@@ -273,14 +278,12 @@ var SampleApp = function () {
         });
         var user_id = user_data.$loki;
         //評論文字
-        var comment_text = req.body.comment_text;\
+        var comment_text = req.body.comment_text;
         //店家ID
         var shop_id = req.body.shop_id;
         //星星評分數目
         var star = req.body.star;
-        var comment_data = {
-            user:
-        }
+
     }
 
     //刪除評論
@@ -289,7 +292,33 @@ var SampleApp = function () {
 
     }
 
-    //
+    //檢查token
+    function checkToken(req, res, next) {
+        var token = req.headers.token;
+        var users = user.find({
+            token: token
+        });
+        if (users.length) {
+            next();
+        } else {
+            res.status(401).send('no permission');
+        }
+    }
+
+    // Add headers
+    function accewssOrigin(req, res, next) {
+        // Website you wish to allow to connect
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        // Request methods you wish to allow
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+        // Request headers you wish to allow
+        res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
+        // Set to true if you need the website to include cookies in the requests sent
+        // to the API (e.g. in case you use sessions)
+        res.setHeader('Access-Control-Allow-Credentials', true);
+        // Pass to next layer of middleware
+        next();
+    }
 
 
 }; /*  Sample Application.  */
