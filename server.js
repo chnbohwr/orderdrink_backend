@@ -5,49 +5,40 @@ var bodyParser = require('body-parser');
 var fs = require('fs');
 var loki = require('lokijs')
 var lokidb = new loki('mydatabase.json');
+var uuid = require('node-uuid');
+var sha256 = require('sha256');
 
 /**
  *  Define the sample application.
  */
 var SampleApp = function () {
 
-    //  Scope.
     var self = this;
-    var shop, company, menu, user, comment;
-
-
+    var shop, company, menu, user, comment, report;
 
     /**
      *  Set up server IP address and port # using env variables/defaults.
      */
     self.setupVariables = function () {
-        //  Set the environment variables we need.
-        self.ipaddress = process.env.OPENSHIFT_NODEJS_IP;
-        self.port = process.env.OPENSHIFT_NODEJS_PORT || 8080;
-
-        if (typeof self.ipaddress === "undefined") {
-            //  Log errors on OpenShift but continue w/ 127.0.0.1 - this
-            //  allows us to run/test the app locally.
-            console.warn('No OPENSHIFT_NODEJS_IP var, using 127.0.0.1');
-            self.ipaddress = "127.0.0.1";
-        };
+        //檢查有沒有設定環境常數，如果沒有就用指定的
+        self.ipaddress = process.env.IP || "127.0.0.1";
+        self.port = process.env.PORT || 8080;
     };
 
-
     /**
-     *  Populate the cache.
+     *  快取一些資料，未來後台管理介面要使用網站會需要用到
      */
     self.populateCache = function () {
+        //如果沒有zcache就先做個初始化的出來
         if (typeof self.zcache === "undefined") {
             self.zcache = {
                 'index.html': ''
             };
         }
 
-        //  Local cache for static content.
+        //把檔案讀取成字串先存進去記憶體
         self.zcache['index.html'] = fs.readFileSync('./index.html');
     };
-
 
     /**
      *  Retrieve entry (content) from cache.
@@ -56,7 +47,6 @@ var SampleApp = function () {
     self.cache_get = function (key) {
         return self.zcache[key];
     };
-
 
     /**
      *  terminator === the termination handler
@@ -72,9 +62,8 @@ var SampleApp = function () {
         console.log('%s: Node server stopped.', Date(Date.now()));
     };
 
-
     /**
-     *  Setup termination handlers (for exit and a list of signals).
+     *  設定關閉程式的接收資訊，把檔案放在雲端平台的時候方便管理
      */
     self.setupTerminationHandlers = function () {
         //  Process on exit and signals.
@@ -92,6 +81,7 @@ var SampleApp = function () {
         });
     };
 
+    //初始化database 
     self.initialDatabase = function () {
         lokidb.loadDatabase({}, function () {
             console.log('initial lokijs Database success');
@@ -101,6 +91,7 @@ var SampleApp = function () {
             menu = lokidb.getCollection('menu');
             user = lokidb.getCollection('user');
             comment = lokidb.getCollection('comment');
+            report = lokidb.getCollection('report');
 
             if (shop === null) {
                 shop = lokidb.addCollection('shop');
@@ -117,12 +108,17 @@ var SampleApp = function () {
             if (user === null) {
                 user = lokidb.addCollection('user');
             }
+            if (report === null) {
+                report = lokidb.addCollection('report');
+            }
 
             console.log('load shop items', shop.idIndex.length);
             console.log('load company items', company.idIndex.length);
             console.log('load menu items', menu.idIndex.length);
             console.log('load user items', user.idIndex.length);
             console.log('load comment items', comment.idIndex.length);
+            console.log('load report items', report.idIndex.length);
+
         });
     };
 
@@ -140,7 +136,6 @@ var SampleApp = function () {
 
     };
 
-
     /**
      *  Initializes the sample application.
      */
@@ -152,7 +147,6 @@ var SampleApp = function () {
         // Create the express server and routes.
         self.initializeServer();
     };
-
 
     /**
      *  Start the server (starts up the sample application).
@@ -191,13 +185,85 @@ var SampleApp = function () {
 
     function getMenuByShopId(req, res) {
         var shop_id = req.params.shop_id;
-        console.log(shop_id);
         var shop_data = shop.get(shop_id);
-        console.log(shop_data);
-        res.json({});
+        var menu_id = shop_data.menu;
+
+        //取不到商店的 menu 就去取得公司
+        if (!menu_id) {
+            var company_data = company.get(shop.company_id);
+            menu_id = company_data.menu;
+        }
+
+        //如果有取得menuid 從 menu資料庫拉資料出來
+        if (menu_id) {
+            var menu_data = menu.get(menu_id);
+        } else {
+            //如果沒有店家資料就
+            res.status(404).send('no menu found')
+        }
     }
 
-    function checkToken(req, res, next) {}
+    function signup(req, res) {
+        var email = req.body.email;
+        var password = req.body.password;
+        //check email password
+        if (!email || !password) {
+            res.status(401).send('no email or password')
+        }
+        //find user 
+        var user_data = user.findOne({
+            email: email
+        });
+        //如果使用者已經存在就不給通過
+        if (user_data) {
+            res.status(402).send('can not signup')
+        } else {
+            //make uuid token
+            var uuid_token = uuid.v4();
+            var encryt_password = sha256(password);
+            var user_data = {
+                email: email,
+                password: encryt_password,
+                token: uuid_token
+            };
+            //存進資料庫裡面
+            user.insert(user_data);
+        }
+    }
+
+    function login(req, res) {
+        var email = req.body.email;
+        var password = req.body.password;
+        //check email password
+        if (!email || !password) {
+            loginerror();
+        }
+        var user_data = user.findOne({
+            email: email
+        });
+        //檢查使用者資料有沒有找到
+        if (user_data) {
+            //配對密碼有無錯誤
+            var encryt_password = sha256(password);
+            //正確會回傳TOKEN
+            if (user_data.password === encryt_password) {
+                res.json({
+                    token: user_data.token
+                });
+            } else {
+                loginerror();
+            }
+        } else {
+            loginerror();
+        }
+
+        //任何錯誤就回傳401 登入失敗
+        function loginerror() {
+            res.status(401).send('login error');
+        }
+    }
+
+
 
 }; /*  Sample Application.  */
 
