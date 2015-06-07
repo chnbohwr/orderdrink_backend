@@ -209,11 +209,14 @@ var SampleApp = function () {
     }
 
     function signup(req, res) {
+        var nickname = req.body.nickname;
         var email = req.body.email;
         var password = req.body.password;
         //check email password
-        if (!email || !password) {
-            res.status(401).send('no email or password')
+        if (!nickname || !email || !password) {
+            res.status(401).send('no email or password');
+            //記得要return 不然會繼續執行下面的程式
+            return;
         }
         //find user 
         var user_data = user.findOne({
@@ -221,18 +224,23 @@ var SampleApp = function () {
         });
         //如果使用者已經存在就不給通過
         if (user_data) {
-            res.status(402).send('can not signup')
+            res.status(401).send('can not signup')
         } else {
             //make uuid token
             var uuid_token = uuid.v4();
             var encryt_password = sha256(password);
             var user_data = {
+                nickname: nickname,
                 email: email,
                 password: encryt_password,
                 token: uuid_token
             };
             //存進資料庫裡面
             user.insert(user_data);
+            //回傳 token 回去
+            res.json({
+                token: uuid_token
+            });
         }
     }
 
@@ -242,6 +250,7 @@ var SampleApp = function () {
         //check email password
         if (!email || !password) {
             loginerror();
+            return;
         }
         var user_data = user.findOne({
             email: email
@@ -256,11 +265,14 @@ var SampleApp = function () {
                 res.json({
                     token: user_data.token
                 });
+                return;
             } else {
                 loginerror();
+                return;
             }
         } else {
             loginerror();
+            return;
         }
 
         //任何錯誤就回傳401 登入失敗
@@ -295,10 +307,12 @@ var SampleApp = function () {
     //檢查token
     function checkToken(req, res, next) {
         var token = req.headers.token;
-        var users = user.find({
+        var user_data = user.findOne({
             token: token
         });
-        if (users.length) {
+        if (user_data) {
+            //pass data to next middleware
+            req.user_data = user_data;
             next();
         } else {
             res.status(401).send('no permission');
