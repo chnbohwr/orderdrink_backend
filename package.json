@@ -21,7 +21,8 @@
     "express": "~4.12.4",
     "lokijs": "^1.2.5",
     "node-uuid": "^1.4.3",
-    "sha256": "^0.2.0"
+    "sha256": "^0.2.0",
+    "webdriverio": "^2.4.5"
   },
   "devDependencies": {},
   "bundleDependencies": [],

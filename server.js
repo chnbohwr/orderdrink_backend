@@ -23,7 +23,7 @@ var SampleApp = function () {
     self.setupVariables = function () {
         //檢查有沒有設定環境常數，如果沒有就用指定的
         self.ipaddress = process.env.IP || "127.0.0.1";
-        self.port = process.env.PORT || 8080;
+        self.port = process.env.PORT || 14789;
     };
 
     /**
@@ -162,15 +162,32 @@ var SampleApp = function () {
         app.get('/api/shop/:shop_id/menu/', checkToken, getMenuByShopId);
         app.post('/signup/', signup);
         app.post('/login/', login);
+        app.get('/',test)
     };
+    
+    function test(req,res){
+        res.send('ok it\'s work');
+    }
 
     function getShopInfoByLocation(req, res) {
         console.time('locationFindShop');
         var lat = req.query.lat || 0;
         var lng = req.query.lng || 0;
+        //檢查是不是自串要把字串轉變成浮點數
+        if (typeof (lat) === 'number') {
+            console.log('lat lng is number');
+
+        } else {
+            console.log('lat lng is string, start parse');
+            lat = parseFloat(lat);
+            lng = parseFloat(lng);
+
+            console.log('parse over lat lng is ' + typeof (lat));
+        }
         var offset = req.query.offset || 0;
         console.log('getShopInfoByLocation', req.query);
         var return_list = shop.chain().find().sort(sortByLocation).offset(offset).limit(30).data();
+//        var return_list = shop.chain().find().sort(sortByLocation).offset(offset).data();
         //根據GPS資訊重新排列
         function sortByLocation(obj1, obj2) {
             var dif_obj1 = Math.abs(obj1.lat - lat) + Math.abs(obj1.lng - lng);
@@ -183,7 +200,6 @@ var SampleApp = function () {
             }
             return 0;
         }
-
         console.timeEnd('locationFindShop');
         res.json(return_list);
     }
@@ -326,7 +342,7 @@ var SampleApp = function () {
         // Request methods you wish to allow
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
         // Request headers you wish to allow
-        res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
+        res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,token');
         // Set to true if you need the website to include cookies in the requests sent
         // to the API (e.g. in case you use sessions)
         res.setHeader('Access-Control-Allow-Credentials', true);
