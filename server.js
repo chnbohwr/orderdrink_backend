@@ -22,7 +22,7 @@ var SampleApp = function () {
      */
     self.setupVariables = function () {
         //檢查有沒有設定環境常數，如果沒有就用指定的
-        self.ipaddress = process.env.IP || "127.0.0.1";
+        self.ipaddress = process.env.IP || "orderdrink.ddns.net";
         self.port = process.env.PORT || 14789;
     };
 
