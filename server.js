@@ -168,7 +168,6 @@ var SampleApp = function () {
     function test(req,res){
         res.send('ok it\'s work');
     }
-
     function getShopInfoByLocation(req, res) {
         console.time('locationFindShop');
         var lat = req.query.lat || 0;
