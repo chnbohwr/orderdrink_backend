@@ -162,12 +162,13 @@ var SampleApp = function () {
         app.get('/api/shop/:shop_id/menu/', checkToken, getMenuByShopId);
         app.post('/signup/', signup);
         app.post('/login/', login);
-        app.get('/',test)
+        app.get('/', test)
     };
-    
-    function test(req,res){
+
+    function test(req, res) {
         res.send('ok it\'s work');
     }
+
     function getShopInfoByLocation(req, res) {
         console.time('locationFindShop');
         var lat = req.query.lat || 0;
@@ -186,7 +187,7 @@ var SampleApp = function () {
         var offset = req.query.offset || 0;
         console.log('getShopInfoByLocation', req.query);
         var return_list = shop.chain().find().sort(sortByLocation).offset(offset).limit(30).data();
-//        var return_list = shop.chain().find().sort(sortByLocation).offset(offset).data();
+        //        var return_list = shop.chain().find().sort(sortByLocation).offset(offset).data();
         //根據GPS資訊重新排列
         function sortByLocation(obj1, obj2) {
             var dif_obj1 = Math.abs(obj1.lat - lat) + Math.abs(obj1.lng - lng);
