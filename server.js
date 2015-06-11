@@ -160,6 +160,7 @@ var SampleApp = function () {
         app.use(accewssOrigin);
         app.get('/api/location/', checkToken, getShopInfoByLocation);
         app.get('/api/shop/:shop_id/menu/', checkToken, getMenuByShopId);
+        app.get('/api/shop/:shop_id/', checkToken, getShopData);
         app.post('/signup/', signup);
         app.post('/login/', login);
         app.get('/', test)
@@ -222,6 +223,38 @@ var SampleApp = function () {
             //如果沒有店家資料就
             res.status(404).send('no menu found')
         }
+    }
+
+    //取得店家詳細資料
+    function getShopData(req, res) {
+        var shop_id = req.params.shop_id;
+        var shop_data = shop.get(shop_id);
+        res.json(shop_data);
+    }
+
+    function getShopComment(req, res) {
+        var shop_id = req.params.shop_id;
+        var offset = req.params.offset;
+        function sortByDatetime(obj1, obj2) {
+            var diff = obj1.create_on - obj2.create_on;
+            if (diff > 0) {
+                return -1;
+            } else if (diff < 0) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+        var data = comment.chain().find({
+            shop_id: shop_id
+        }).sort(sortByDatetime).offset(offset).limit(30).data();
+        res.json(data);
+    }
+
+    function createShopComment(req, res) {
+        var object = req.body.comment;
+        comment.insert(object);
+        res.status(200).send();
     }
 
     function signup(req, res) {
