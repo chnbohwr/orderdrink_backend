@@ -23,6 +23,7 @@ var SampleApp = function () {
     self.setupVariables = function () {
         //檢查有沒有設定環境常數，如果沒有就用指定的
         self.ipaddress = process.env.IP || "orderdrink.ddns.net";
+//        self.ipaddress = process.env.IP || "127.0.0.1";
         self.port = process.env.PORT || 14789;
     };
 
@@ -161,6 +162,8 @@ var SampleApp = function () {
         app.get('/api/location/', checkToken, getShopInfoByLocation);
         app.get('/api/shop/:shop_id/menu/', checkToken, getMenuByShopId);
         app.get('/api/shop/:shop_id/', checkToken, getShopData);
+        app.get('/api/shop/:shop_id/comment/',checkToken,getShopComment);
+        app.post('/api/shop/:shop_id/comment/',checkToken,createShopComment);
         app.post('/signup/', signup);
         app.post('/login/', login);
         app.get('/', test)
@@ -233,6 +236,7 @@ var SampleApp = function () {
     }
 
     function getShopComment(req, res) {
+        console.log('getShopComment',req.params);
         var shop_id = req.params.shop_id;
         var offset = req.params.offset;
         function sortByDatetime(obj1, obj2) {
@@ -248,13 +252,35 @@ var SampleApp = function () {
         var data = comment.chain().find({
             shop_id: shop_id
         }).sort(sortByDatetime).offset(offset).limit(30).data();
+        console.log('getShopComment data',data);
         res.json(data);
     }
 
     function createShopComment(req, res) {
-        var object = req.body.comment;
+        
+        //尋找使用者ID
+        var user_token = req.headers.token;
+        var user_data = user.findOne({
+            token: user_token
+        });
+        var user_id = user_data.$loki;
+        //評論文字
+        var message = req.body.message;
+        //店家ID
+        var shop_id = req.params.shop_id;
+        //星星評分數目
+        var star = req.body.star;
+        
+        var object = {
+            user_id:user_id,
+            shop_id:shop_id,
+            message:message,
+            star:star,
+            create_on:new Date()
+        };
+        
         comment.insert(object);
-        res.status(200).send();
+        res.json(object);
     }
 
     function signup(req, res) {
@@ -328,23 +354,6 @@ var SampleApp = function () {
         function loginerror() {
             res.status(401).send('login error');
         }
-    }
-
-    //上傳評論
-    function uploadComment(req, res) {
-        //尋找使用者ID
-        var user_token = req.headers.token;
-        var user_data = user.findOne({
-            token: user_token
-        });
-        var user_id = user_data.$loki;
-        //評論文字
-        var comment_text = req.body.comment_text;
-        //店家ID
-        var shop_id = req.body.shop_id;
-        //星星評分數目
-        var star = req.body.star;
-
     }
 
     //刪除評論
