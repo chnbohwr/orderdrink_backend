@@ -23,7 +23,7 @@ var SampleApp = function () {
     self.setupVariables = function () {
         //檢查有沒有設定環境常數，如果沒有就用指定的
         self.ipaddress = process.env.IP || "orderdrink.ddns.net";
-//        self.ipaddress = process.env.IP || "127.0.0.1";
+//                self.ipaddress = process.env.IP || "127.0.0.1";
         self.port = process.env.PORT || 14789;
     };
 
@@ -162,10 +162,13 @@ var SampleApp = function () {
         app.get('/api/location/', checkToken, getShopInfoByLocation);
         app.get('/api/shop/:shop_id/menu/', checkToken, getMenuByShopId);
         app.get('/api/shop/:shop_id/', checkToken, getShopData);
-        app.get('/api/shop/:shop_id/comment/',checkToken,getShopComment);
-        app.post('/api/shop/:shop_id/comment/',checkToken,createShopComment);
+        app.get('/api/shop/:shop_id/comment/', checkToken, getShopComment);
+        app.post('/api/shop/:shop_id/comment/', checkToken, createShopComment);
+        app.get('/api/user/:user_id/',checkToken,getUserData);
+        app.post('/api/uploadPhoto/',checkToken,uploadPhoto);
         app.post('/signup/', signup);
         app.post('/login/', login);
+        app.post('/login/facebook/', loginByFacebook);
         app.get('/', test)
     };
 
@@ -173,6 +176,11 @@ var SampleApp = function () {
         res.send('ok it\'s work');
     }
 
+    function uploadPhoto(req,res){
+        console.log(req.files);
+        res.send('ok')
+    }
+    
     function getShopInfoByLocation(req, res) {
         console.time('locationFindShop');
         var lat = req.query.lat || 0;
@@ -208,6 +216,20 @@ var SampleApp = function () {
         res.json(return_list);
     }
 
+    //取得使用者的資料
+    function getUserData(req,res){
+        var user_id = parseInt(req.params.user_id);
+        var user_data = user.get(user_id);
+        //如果找到資料了
+        if(user_data){
+            var data = {
+                nickname:user_data.nickname
+            };
+            res.json(data);
+        }else{
+            res.status(404).send('can not find user');
+        }
+    }
     function getMenuByShopId(req, res) {
         var shop_id = req.params.shop_id;
         var shop_data = shop.get(shop_id);
@@ -236,9 +258,10 @@ var SampleApp = function () {
     }
 
     function getShopComment(req, res) {
-        console.log('getShopComment',req.params);
+        console.log('getShopComment', req.params);
         var shop_id = req.params.shop_id;
         var offset = req.params.offset;
+
         function sortByDatetime(obj1, obj2) {
             var diff = obj1.create_on - obj2.create_on;
             if (diff > 0) {
@@ -252,12 +275,12 @@ var SampleApp = function () {
         var data = comment.chain().find({
             shop_id: shop_id
         }).sort(sortByDatetime).offset(offset).limit(30).data();
-        console.log('getShopComment data',data);
+        console.log('getShopComment data', data);
         res.json(data);
     }
 
     function createShopComment(req, res) {
-        
+
         //尋找使用者ID
         var user_token = req.headers.token;
         var user_data = user.findOne({
@@ -270,15 +293,15 @@ var SampleApp = function () {
         var shop_id = req.params.shop_id;
         //星星評分數目
         var star = req.body.star;
-        
+
         var object = {
-            user_id:user_id,
-            shop_id:shop_id,
-            message:message,
-            star:star,
-            create_on:new Date()
+            user_id: user_id,
+            shop_id: shop_id,
+            message: message,
+            star: star,
+            create_on: new Date()
         };
-        
+
         comment.insert(object);
         res.json(object);
     }
@@ -333,13 +356,16 @@ var SampleApp = function () {
 
         //檢查使用者資料有沒有找到
         if (user_data) {
+            //如果是FACEBOOK 註冊帳號的話 就不能用普通的方式登入了
+            if (user_data.facebook_id) {
+                loginerror();
+                return;
+            }
             //配對密碼有無錯誤
             var encryt_password = sha256(password);
             //正確會回傳TOKEN
             if (user_data.password === encryt_password) {
-                res.json({
-                    token: user_data.token
-                });
+                res.json(user_data);
                 return;
             } else {
                 loginerror();
@@ -355,6 +381,33 @@ var SampleApp = function () {
             res.status(401).send('login error');
         }
     }
+
+    //從 FACEBOOK 登入的
+    //    {"id":"106191296386841","email":"imffqsz_zuckerson_1434104811@tfbnw.net","first_name":"Margaret","gender":"female","last_name":"Zuckerson","link":"https://www.facebook.com/app_scoped_user_id/106191296386841/","locale":"zh_TW","middle_name":"Amihgiabdejd","name":"Margaret Amihgiabdejd Zuckerson","timezone":0,"updated_time":"2015-06-12T10:27:01+0000","verified":false}
+
+    function loginByFacebook(req, res) {
+        //尋找有沒有使用者的facebook_id符合
+        var user_data = user.findOne({
+            facebook_id: req.body.id
+        });
+
+        //有在我的server裡面有資訊就直接回傳 沒有的話幫他註冊以後回傳
+        if (user_data) {
+            res.json(user_data);
+        } else {
+            var data = {
+                facebook_id: req.body.id,
+                email: req.body.email,
+                nickname: req.body.name,
+                link: req.body.link,
+                locale: req.body.locale,
+                token:uuid.v4()
+            };
+            user.insert(data);
+            res.json(data);
+        }
+    }
+
 
     //刪除評論
     function deleteComment(req, res) {
