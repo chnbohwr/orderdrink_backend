@@ -6,6 +6,7 @@ var bodyParser = require('body-parser');
 var fs = require('fs');
 var loki = require('lokijs');
 var lokidb = new loki('mydatabase.json');
+var userdb = new loki('user.json');
 var uuid = require('node-uuid');
 var sha256 = require('sha256');
 
@@ -23,7 +24,7 @@ var SampleApp = function () {
     self.setupVariables = function () {
         //檢查有沒有設定環境常數，如果沒有就用指定的
         self.ipaddress = process.env.IP || "orderdrink.ddns.net";
-//                self.ipaddress = process.env.IP || "127.0.0.1";
+        //                self.ipaddress = process.env.IP || "127.0.0.1";
         self.port = process.env.PORT || 14789;
     };
 
@@ -91,9 +92,7 @@ var SampleApp = function () {
             shop = lokidb.getCollection('shop');
             company = lokidb.getCollection('company');
             menu = lokidb.getCollection('menu');
-            user = lokidb.getCollection('user');
-            comment = lokidb.getCollection('comment');
-            report = lokidb.getCollection('report');
+
 
             if (shop === null) {
                 shop = lokidb.addCollection('shop');
@@ -104,23 +103,29 @@ var SampleApp = function () {
             if (menu === null) {
                 menu = lokidb.addCollection('menu');
             }
-            if (comment === null) {
-                comment = lokidb.addCollection('comment');
-            }
-            if (user === null) {
-                user = lokidb.addCollection('user');
-            }
-            if (report === null) {
-                report = lokidb.addCollection('report');
-            }
-
             console.log('load shop items', shop.idIndex.length);
             console.log('load company items', company.idIndex.length);
             console.log('load menu items', menu.idIndex.length);
+
+
+
+        });
+        userdb.loadDatabase({}, function () {
+            user = userdb.getCollection('user');
+            comment = userdb.getCollection('comment');
+            report = userdb.getCollection('report');
+            if (comment === null) {
+                comment = userdb.addCollection('comment');
+            }
+            if (user === null) {
+                user = userdb.addCollection('user');
+            }
+            if (report === null) {
+                report = userdb.addCollection('report');
+            }
             console.log('load user items', user.idIndex.length);
             console.log('load comment items', comment.idIndex.length);
             console.log('load report items', report.idIndex.length);
-
         });
     };
 
@@ -164,8 +169,10 @@ var SampleApp = function () {
         app.get('/api/shop/:shop_id/', checkToken, getShopData);
         app.get('/api/shop/:shop_id/comment/', checkToken, getShopComment);
         app.post('/api/shop/:shop_id/comment/', checkToken, createShopComment);
-        app.get('/api/user/:user_id/',checkToken,getUserData);
-        app.post('/api/uploadPhoto/',checkToken,uploadPhoto);
+        app.get('/api/user/:user_id/', checkToken, getUserData);
+        app.post('/api/profile/', checkToken, setProfile);
+        app.post('/api/uploadPhoto/', checkToken, uploadPhoto);
+        app.post('/api/report/', checkToken, reportApp);
         app.post('/signup/', signup);
         app.post('/login/', login);
         app.post('/login/facebook/', loginByFacebook);
@@ -176,11 +183,25 @@ var SampleApp = function () {
         res.send('ok it\'s work');
     }
 
-    function uploadPhoto(req,res){
+    function uploadPhoto(req, res) {
         console.log(req.files);
         res.send('ok')
     }
-    
+
+    function reportApp(req, res) {
+        var data = req.body;
+        data.user_id = req.user_data.$loki;
+        data.create_on = new Date();
+        report.insert(data);
+        res.send('ok');
+    }
+
+    function setProfile(req, res) {
+        var nickname = req.body.nickname;
+        req.user_data.nickname = nickname;
+        res.send('ok');
+    }
+
     function getShopInfoByLocation(req, res) {
         console.time('locationFindShop');
         var lat = req.query.lat || 0;
@@ -217,19 +238,20 @@ var SampleApp = function () {
     }
 
     //取得使用者的資料
-    function getUserData(req,res){
+    function getUserData(req, res) {
         var user_id = parseInt(req.params.user_id);
         var user_data = user.get(user_id);
         //如果找到資料了
-        if(user_data){
+        if (user_data) {
             var data = {
-                nickname:user_data.nickname
+                nickname: user_data.nickname
             };
             res.json(data);
-        }else{
+        } else {
             res.status(404).send('can not find user');
         }
     }
+
     function getMenuByShopId(req, res) {
         var shop_id = req.params.shop_id;
         var shop_data = shop.get(shop_id);
@@ -303,6 +325,7 @@ var SampleApp = function () {
         };
 
         comment.insert(object);
+        userdb.save();
         res.json(object);
     }
 
@@ -336,6 +359,7 @@ var SampleApp = function () {
             //存進資料庫裡面
             user.insert(user_data);
             //回傳 token 回去
+            userdb.save();
             res.json({
                 token: uuid_token
             });
@@ -401,9 +425,10 @@ var SampleApp = function () {
                 nickname: req.body.name,
                 link: req.body.link,
                 locale: req.body.locale,
-                token:uuid.v4()
+                token: uuid.v4()
             };
             user.insert(data);
+            userdb.save();
             res.json(data);
         }
     }
@@ -412,7 +437,11 @@ var SampleApp = function () {
     //刪除評論
     function deleteComment(req, res) {
         var comment_id = req.body.comment_id;
-
+        var dbcomment = comment.get(comment_id);
+        if (dbcomment) {
+            dbcomment.remove = true;
+            userdb.save();
+        }
     }
 
     //檢查token
