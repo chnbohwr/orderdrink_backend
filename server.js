@@ -5,7 +5,7 @@ var app = express();
 var bodyParser = require('body-parser');
 var fs = require('fs');
 var loki = require('lokijs');
-var lokidb = new loki('mydatabase.json');
+var lokidb = new loki('shop.json');
 var userdb = new loki('user.json');
 var uuid = require('node-uuid');
 var sha256 = require('sha256');
@@ -203,7 +203,7 @@ var SampleApp = function () {
     }
 
     function getShopInfoByLocation(req, res) {
-        console.log('user:'+req.user_data.nickname+'find shops by location');
+        console.log('user:' + req.user_data.nickname + 'find shops by location');
         var lat = req.query.lat || 0;
         var lng = req.query.lng || 0;
         //檢查是不是自串要把字串轉變成浮點數
@@ -227,14 +227,14 @@ var SampleApp = function () {
             }
             return 0;
         }
-        
+
         res.json(return_list);
     }
 
     //取得使用者的資料
     function getUserData(req, res) {
         var user_id = parseInt(req.params.user_id);
-        console.log('user:'+req.user_data.nickname+'get user data:'+user_id);
+        console.log('user:' + req.user_data.nickname + 'get user data:' + user_id);
         var user_data = user.get(user_id);
         //如果找到資料了
         if (user_data) {
@@ -248,19 +248,25 @@ var SampleApp = function () {
     }
 
     function getMenuByShopId(req, res) {
-        var shop_id = req.params.shop_id;
+        var shop_id = parseInt(req.params.shop_id);
+
         var shop_data = shop.get(shop_id);
-        var menu_id = shop_data.menu;
+
+        var menu_id = shop_data.menu_id;
+
 
         //取不到商店的 menu 就去取得公司
         if (!menu_id) {
-            var company_data = company.get(shop.company_id);
-            menu_id = company_data.menu;
+
+            var company_data = company.get(shop_data.company_id);
+
+            menu_id = company_data.menu_id;
         }
 
         //如果有取得menuid 從 menu資料庫拉資料出來
         if (menu_id) {
             var menu_data = menu.get(menu_id);
+            res.json(menu_data);
         } else {
             //如果沒有店家資料就
             res.status(404).send('no menu found')
@@ -270,15 +276,15 @@ var SampleApp = function () {
     //取得店家詳細資料
     function getShopData(req, res) {
         var shop_id = req.params.shop_id;
-        console.log('user:'+req.user_data.nickname+'get shop data:'+shop_id);
+        console.log('user:' + req.user_data.nickname + 'get shop data:' + shop_id);
         var shop_data = shop.get(shop_id);
         res.json(shop_data);
     }
 
     function getShopComment(req, res) {
-        
+
         var shop_id = req.params.shop_id;
-        console.log('user:'+req.user_data.nickname+'get shop comment:'+shop_id);
+        console.log('user:' + req.user_data.nickname + 'get shop comment:' + shop_id);
         var offset = req.params.offset;
 
         function sortByDatetime(obj1, obj2) {
@@ -299,16 +305,16 @@ var SampleApp = function () {
     }
 
     function createShopComment(req, res) {
-        
+
         var user_id = req.user_data.$loki
-        //評論文字
+            //評論文字
         var message = req.body.message;
         //店家ID
         var shop_id = req.params.shop_id;
         //星星評分數目
         var star = req.body.star;
-        
-        console.log('user:'+req.user_data.nickname+'send shop comment:'+shop_id);
+
+        console.log('user:' + req.user_data.nickname + 'send shop comment:' + shop_id);
 
         var object = {
             user_id: user_id,
@@ -408,7 +414,7 @@ var SampleApp = function () {
         var user_data = user.findOne({
             facebook_id: req.body.id
         });
-        
+
         //有在我的server裡面有資訊就直接回傳 沒有的話幫他註冊以後回傳
         if (user_data) {
             res.json(user_data);
@@ -423,7 +429,7 @@ var SampleApp = function () {
             };
             user.insert(data);
             userdb.save();
-            console.log('user:'+data.nickname+' register');
+            console.log('user:' + data.nickname + ' register');
             res.json(data);
         }
     }

@@ -1,5 +1,5 @@
 var loki = require('lokijs')
-var lokidb = new loki('mydatabase.json');
+var lokidb = new loki('shop.json');
 var userdb = new loki('user.json');
 
 var shop, company, menu,user,comment,report;
