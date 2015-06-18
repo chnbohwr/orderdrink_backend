@@ -257,9 +257,7 @@ var SampleApp = function () {
 
         //取不到商店的 menu 就去取得公司
         if (!menu_id) {
-
-            var company_data = company.get(shop_data.company_id);
-
+            var company_data = company.get(shop_data.company_id)
             menu_id = company_data.menu_id;
         }
 
