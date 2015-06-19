@@ -333,7 +333,9 @@ var SampleApp = function () {
         var password = req.body.password;
         //check email password
         if (!nickname || !email || !password) {
-            res.status(401).send('no email or password');
+            res.status(401).json({
+                code: 0 //格式有問題
+            });
             //記得要return 不然會繼續執行下面的程式
             return;
         }
@@ -343,7 +345,15 @@ var SampleApp = function () {
         });
         //如果使用者已經存在就不給通過
         if (user_data) {
-            res.status(401).send('can not signup')
+            if (user_data.facebook_id) {
+                res.status(401).json({
+                    code: 1 //使用臉書註冊的用戶
+                });
+            } else {
+                res.status(401).json({
+                    code: 2 //重複註冊了
+                });
+            }
         } else {
             //make uuid token
             var uuid_token = uuid.v4();
@@ -380,7 +390,7 @@ var SampleApp = function () {
         if (user_data) {
             //如果是FACEBOOK 註冊帳號的話 就不能用普通的方式登入了
             if (user_data.facebook_id) {
-                loginerror();
+                res.status(401).json({code:1});
                 return;
             }
             //配對密碼有無錯誤
@@ -390,11 +400,11 @@ var SampleApp = function () {
                 res.json(user_data);
                 return;
             } else {
-                loginerror();
+                res.status(401).json({code:0});
                 return;
             }
         } else {
-            loginerror();
+            res.status(401).json({code:0});
             return;
         }
 
