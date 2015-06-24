@@ -3,7 +3,11 @@
 var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
+var multer = require('multer')
 var fs = require('fs');
+var gm = require('gm').subClass({
+    imageMagick: true
+});
 var loki = require('lokijs');
 var lokidb = new loki('shop.json');
 var userdb = new loki('user.json');
@@ -17,6 +21,7 @@ var SampleApp = function () {
 
     var self = this;
     var shop, company, menu, user, comment, report;
+    var pictureDir = './pic';
 
     /**
      *  Set up server IP address and port # using env variables/defaults.
@@ -26,6 +31,10 @@ var SampleApp = function () {
         self.ipaddress = process.env.IP || "orderdrink.ddns.net";
         //                self.ipaddress = process.env.IP || "127.0.0.1";
         self.port = process.env.PORT || 14789;
+
+        if (!fs.existsSync(pictureDir)) {
+            fs.mkdirSync(pictureDir);
+        }
     };
 
     /**
@@ -159,6 +168,10 @@ var SampleApp = function () {
      *  the handlers.
      */
     self.initializeServer = function () {
+        app.use(express.static('pic'));
+        app.use(multer({
+            dest: './uploads/'
+        }))
         app.use(bodyParser.json()); // to support JSON-encoded bodies
         app.use(bodyParser.urlencoded({ // to support URL-encoded bodies
             extended: true
@@ -171,7 +184,7 @@ var SampleApp = function () {
         app.post('/api/shop/:shop_id/comment/', checkToken, createShopComment);
         app.get('/api/user/:user_id/', checkToken, getUserData);
         app.post('/api/profile/', checkToken, setProfile);
-        app.post('/api/uploadPhoto/', checkToken, uploadPhoto);
+        app.post('/api/uploadAvatar/', checkToken, uploadAvatar);
         app.post('/api/report/', checkToken, reportApp);
         app.post('/signup/', signup);
         app.post('/login/', login);
@@ -183,9 +196,31 @@ var SampleApp = function () {
         res.send('ok it\'s work');
     }
 
-    function uploadPhoto(req, res) {
-        console.log(req.files);
-        res.send('ok')
+    function uploadAvatar(req, res) {
+        var filename = req.files.files.name;
+        var newpath = './pic/' + filename;
+        gm(req.files.files.path).resize(600).quality(50).strip().write(newpath + '_big.jpg', function (err) {
+            if (!err) {
+                gm(req.files.files.path).resize(100).quality(30).strip().write(newpath + '_small.jpg', function (err) {
+                    if (!err) {
+                        var user_data = req.user_data;
+                        if(user_data.avatar){
+                            fs.unlink('./pic/'+user_data.avatar);
+                            fs.unlink('./pic/'+user_data.avatar_thumb);
+                        }
+                        user_data.avatar_thumb = filename + '_small.jpg';
+                        user_data.avatar = filename + '_big.jpg';
+                        user.update(user_data);
+                        userdb.save();
+                        console.log('user_data', user_data);
+                        fs.unlink(req.files.files.path);
+                        res.send('ok');
+                    }
+                });
+            } else {
+                res.status(400).send('no ok');
+            }
+        })
     }
 
     function reportApp(req, res) {
@@ -234,12 +269,15 @@ var SampleApp = function () {
     //取得使用者的資料
     function getUserData(req, res) {
         var user_id = parseInt(req.params.user_id);
-        console.log('user:' + req.user_data.nickname + 'get user data:' + user_id);
+
         var user_data = user.get(user_id);
+        console.log(user_data);
         //如果找到資料了
         if (user_data) {
             var data = {
-                nickname: user_data.nickname
+                nickname: user_data.nickname,
+                avatar_thumb: user_data.avatar_thumb,
+                avatar: user_data.avatar
             };
             res.json(data);
         } else {
@@ -390,7 +428,9 @@ var SampleApp = function () {
         if (user_data) {
             //如果是FACEBOOK 註冊帳號的話 就不能用普通的方式登入了
             if (user_data.facebook_id) {
-                res.status(401).json({code:1});
+                res.status(401).json({
+                    code: 1
+                });
                 return;
             }
             //配對密碼有無錯誤
@@ -400,11 +440,15 @@ var SampleApp = function () {
                 res.json(user_data);
                 return;
             } else {
-                res.status(401).json({code:0});
+                res.status(401).json({
+                    code: 0
+                });
                 return;
             }
         } else {
-            res.status(401).json({code:0});
+            res.status(401).json({
+                code: 0
+            });
             return;
         }
 

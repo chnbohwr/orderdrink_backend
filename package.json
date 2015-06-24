@@ -19,7 +19,9 @@
   "dependencies": {
     "body-parser": "^1.12.4",
     "express": "~4.12.4",
+    "gm": "^1.18.1",
     "lokijs": "^1.2.5",
+    "multer": "^0.1.8",
     "node-uuid": "^1.4.3",
     "sha256": "^0.2.0",
     "webdriverio": "^2.4.5"
