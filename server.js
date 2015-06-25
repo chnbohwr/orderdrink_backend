@@ -201,20 +201,20 @@ var SampleApp = function () {
         var newpath = './pic/' + filename;
         gm(req.files.files.path).resize(600).quality(50).strip().write(newpath + '_big.jpg', function (err) {
             if (!err) {
-                gm(req.files.files.path).resize(100).quality(30).strip().write(newpath + '_small.jpg', function (err) {
+                gm(req.files.files.path).resize(200).quality(30).strip().write(newpath + '_small.jpg', function (err) {
                     if (!err) {
                         var user_data = req.user_data;
                         if(user_data.avatar){
-                            fs.unlink('./pic/'+user_data.avatar);
-                            fs.unlink('./pic/'+user_data.avatar_thumb);
+                            fs.unlink('./pic/'+user_data.avatar,function(){});
+                            fs.unlink('./pic/'+user_data.avatar_thumb,function(){});
                         }
                         user_data.avatar_thumb = filename + '_small.jpg';
                         user_data.avatar = filename + '_big.jpg';
                         user.update(user_data);
                         userdb.save();
                         console.log('user_data', user_data);
-                        fs.unlink(req.files.files.path);
-                        res.send('ok');
+                        fs.unlink(req.files.files.path,function(){});
+                        res.json(user_data);
                     }
                 });
             } else {
