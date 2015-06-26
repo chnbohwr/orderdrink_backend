@@ -185,6 +185,7 @@ var SampleApp = function () {
         app.get('/api/user/:user_id/', checkToken, getUserData);
         app.post('/api/profile/', checkToken, setProfile);
         app.post('/api/uploadAvatar/', checkToken, uploadAvatar);
+        app.post('/api/uploadBackground', checkToken, uploadBackground);
         app.post('/api/report/', checkToken, reportApp);
         app.post('/signup/', signup);
         app.post('/login/', login);
@@ -204,19 +205,40 @@ var SampleApp = function () {
                 gm(req.files.files.path).resize(200).quality(30).strip().write(newpath + '_small.jpg', function (err) {
                     if (!err) {
                         var user_data = req.user_data;
-                        if(user_data.avatar){
-                            fs.unlink('./pic/'+user_data.avatar,function(){});
-                            fs.unlink('./pic/'+user_data.avatar_thumb,function(){});
+                        if (user_data.avatar) {
+                            fs.unlink('./pic/' + user_data.avatar, function () {});
+                            fs.unlink('./pic/' + user_data.avatar_thumb, function () {});
                         }
                         user_data.avatar_thumb = filename + '_small.jpg';
                         user_data.avatar = filename + '_big.jpg';
                         user.update(user_data);
                         userdb.save();
                         console.log('user_data', user_data);
-                        fs.unlink(req.files.files.path,function(){});
+                        fs.unlink(req.files.files.path, function () {});
                         res.json(user_data);
                     }
                 });
+            } else {
+                res.status(400).send('no ok');
+            }
+        })
+    }
+
+    function uploadBackground(req, res) {
+        var filename = req.files.files.name;
+        var newpath = './pic/' + filename;
+        gm(req.files.files.path).resize(800).quality(50).strip().write(newpath + '_back.jpg', function (err) {
+            if (!err) {
+                var user_data = req.user_data;
+                if (user_data.background) {
+                    fs.unlink('./pic/' + user_data.background, function () {});
+                }
+                user_data.background = filename + '_back.jpg';
+                user.update(user_data);
+                userdb.save();
+                console.log('user_data', user_data);
+                fs.unlink(req.files.files.path, function () {});
+                res.json(user_data);
             } else {
                 res.status(400).send('no ok');
             }
