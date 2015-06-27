@@ -201,7 +201,6 @@ var SampleApp = function () {
 
     function uploadFavorite(req, res) {
         var array = req.body.favoriteCompany;
-        console.log(array);
         if (Array.isArray(array)) {
             req.user_data.favoriteCompany = array;
             user.update(req.user_data);
@@ -210,6 +209,7 @@ var SampleApp = function () {
         } else {
             res.status(400).send('type error')
         }
+        console.log('使用者:' + req.user_data.nickname + '更新喜好列表');
     }
 
     function getComapnies(req, res) {
