@@ -182,10 +182,12 @@ var SampleApp = function () {
         app.get('/api/shop/:shop_id/', checkToken, getShopData);
         app.get('/api/shop/:shop_id/comment/', checkToken, getShopComment);
         app.post('/api/shop/:shop_id/comment/', checkToken, createShopComment);
+        app.get('/api/comapnies/', checkToken, getComapnies)
         app.get('/api/user/:user_id/', checkToken, getUserData);
         app.post('/api/profile/', checkToken, setProfile);
         app.post('/api/uploadAvatar/', checkToken, uploadAvatar);
         app.post('/api/uploadBackground', checkToken, uploadBackground);
+        app.post('/api/uploadFavorite/', checkToken, uploadFavorite)
         app.post('/api/report/', checkToken, reportApp);
         app.post('/signup/', signup);
         app.post('/login/', login);
@@ -195,6 +197,24 @@ var SampleApp = function () {
 
     function test(req, res) {
         res.send('ok it\'s work');
+    }
+
+    function uploadFavorite(req, res) {
+        var array = req.body.favoriteCompany;
+        console.log(array);
+        if (Array.isArray(array)) {
+            req.user_data.favoriteCompany = array;
+            user.update(req.user_data);
+            userdb.save();
+            res.json(req.user_data);
+        } else {
+            res.status(400).send('type error')
+        }
+    }
+
+    function getComapnies(req, res) {
+        var companies = company.find();
+        res.json(companies);
     }
 
     function uploadAvatar(req, res) {
@@ -260,18 +280,43 @@ var SampleApp = function () {
     }
 
     function getShopInfoByLocation(req, res) {
-        console.log('user:' + req.user_data.nickname + 'find shops by location');
+        
+        //前處理request資料
+        console.log('使用者:' + req.user_data.nickname + '搜尋附近的店家');
+        console.time('getShopInfoByLocation');
         var lat = req.query.lat || 0;
         var lng = req.query.lng || 0;
+        var offset = req.query.offset || 0;
+        
         //檢查是不是自串要把字串轉變成浮點數
         if (typeof (lat) !== 'number') {
             lat = parseFloat(lat);
             lng = parseFloat(lng);
+            offset = parseInt(offset);
         }
-        var offset = req.query.offset || 0;
-        console.log('getShopInfoByLocation', req.query);
-        var return_list = shop.chain().find().sort(sortByLocation).offset(offset).limit(30).data();
-        //        var return_list = shop.chain().find().sort(sortByLocation).offset(offset).data();
+        
+        //檢查使用者有沒有設定過喜愛店家
+        var favoriteCompany = req.user_data.favoriteCompany;
+        if(!favoriteCompany){
+            req.user_data.favoriteCompany = [];
+            var comps = company.find();
+            for(var i in comps){
+                req.user_data.favoriteCompany.push(comps[i].$loki);
+            }
+            favoriteCompany = req.user_data.favoriteCompany;
+        }
+        
+        //過濾喜歡的店家
+        function getFavorite(db_data){
+            var comp_id = db_data.company_id;
+            var index = favoriteCompany.indexOf(comp_id);
+            if(index === -1){
+                return false;
+            }else{
+                return true;
+            }
+        }
+        
         //根據GPS資訊重新排列
         function sortByLocation(obj1, obj2) {
             var dif_obj1 = Math.abs(obj1.lat - lat) + Math.abs(obj1.lng - lng);
@@ -284,8 +329,11 @@ var SampleApp = function () {
             }
             return 0;
         }
-
+        
+        var return_list = shop.chain().where(getFavorite).sort(sortByLocation).offset(offset).limit(30).data();
+        
         res.json(return_list);
+        console.timeEnd('getShopInfoByLocation');
     }
 
     //取得使用者的資料
