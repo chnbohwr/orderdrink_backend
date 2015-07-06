@@ -10,9 +10,12 @@ var gm = require('gm').subClass({
 });
 var loki = require('lokijs');
 var lokidb = new loki('shop.json');
-var userdb = new loki('user.json');
 var uuid = require('node-uuid');
 var sha256 = require('sha256');
+
+//import sequlize
+var Sequelize = require('sequelize');
+var SqlConfig = require('./sqlconfig.js');
 
 /**
  *  Define the sample application.
@@ -20,7 +23,7 @@ var sha256 = require('sha256');
 var SampleApp = function () {
 
     var self = this;
-    var shop, company, menu, user, comment, report;
+    var shop, company, Menu, User, Comment, Report;
     var pictureDir = './pic';
 
     /**
@@ -95,47 +98,61 @@ var SampleApp = function () {
 
     //初始化database 
     self.initialDatabase = function () {
-        lokidb.loadDatabase({}, function () {
-            console.log('initial lokijs Database success');
 
-            shop = lokidb.getCollection('shop');
-            company = lokidb.getCollection('company');
-            menu = lokidb.getCollection('menu');
+        function initialMariadb() {
+            var sequelize = new Sequelize(SqlConfig.dbname, SqlConfig.user, SqlConfig.password, {
+                host: SqlConfig.host,
+                dialect: SqlConfig.dialect
+            });
 
+            Menu = sequelize.define('menu', {
+                name: Sequelize.STRING,
+                list: Sequelize.TEXT
+            });
 
-            if (shop === null) {
-                shop = lokidb.addCollection('shop');
-            }
-            if (company === null) {
-                company = lokidb.addCollection('company');
-            }
-            if (menu === null) {
-                menu = lokidb.addCollection('menu');
-            }
-            console.log('load shop items', shop.idIndex.length);
-            console.log('load company items', company.idIndex.length);
-            console.log('load menu items', menu.idIndex.length);
+            User = sequelize.define('user', {
+                facebook_id: Sequelize.STRING,
+                email: Sequelize.STRING,
+                nickname: Sequelize.STRING,
+                link: Sequelize.STRING,
+                locale: Sequelize.STRING,
+                token: Sequelize.STRING,
+                favoriteCompany: Sequelize.TEXT
+            });
 
+            Comment = sequelize.define('comment', {
+                user_id: Sequelize.INTEGER,
+                shop_id: Sequelize.INTEGER,
+                message: Sequelize.STRING,
+                star: Sequelize.INTEGER,
+            });
 
+            sequelize.sync().then(initialLokidb);
+        }
 
-        });
-        userdb.loadDatabase({}, function () {
-            user = userdb.getCollection('user');
-            comment = userdb.getCollection('comment');
-            report = userdb.getCollection('report');
-            if (comment === null) {
-                comment = userdb.addCollection('comment');
-            }
-            if (user === null) {
-                user = userdb.addCollection('user');
-            }
-            if (report === null) {
-                report = userdb.addCollection('report');
-            }
-            console.log('load user items', user.idIndex.length);
-            console.log('load comment items', comment.idIndex.length);
-            console.log('load report items', report.idIndex.length);
-        });
+        function initialLokidb() {
+            //initial lokidb shop data 
+            lokidb.loadDatabase({}, function () {
+
+                shop = lokidb.getCollection('shop');
+                company = lokidb.getCollection('company');
+
+                if (shop === null) {
+                    shop = lokidb.addCollection('shop');
+                }
+                if (company === null) {
+                    company = lokidb.addCollection('company');
+                }
+
+                console.log('load shop items', shop.idIndex.length);
+                console.log('load company items', company.idIndex.length);
+
+            });
+
+            self.initializeServer();
+        }
+
+        initialMariadb();
     };
 
 
@@ -149,7 +166,7 @@ var SampleApp = function () {
         self.setupTerminationHandlers();
         self.initialDatabase();
         // Create the express server and routes.
-        self.initializeServer();
+
     };
 
     /**
@@ -189,8 +206,8 @@ var SampleApp = function () {
         app.post('/api/uploadBackground', checkToken, uploadBackground);
         app.post('/api/uploadFavorite/', checkToken, uploadFavorite)
         app.post('/api/report/', checkToken, reportApp);
-        app.post('/signup/', signup);
-        app.post('/login/', login);
+        //app.post('/signup/', signup);
+        //app.post('/login/', login);
         app.post('/login/facebook/', loginByFacebook);
         app.get('/', test)
     };
@@ -199,6 +216,7 @@ var SampleApp = function () {
         res.send('ok it\'s work');
     }
 
+    //FAVORITE userdb
     function uploadFavorite(req, res) {
         var array = req.body.favoriteCompany;
         if (Array.isArray(array)) {
@@ -280,43 +298,35 @@ var SampleApp = function () {
     }
 
     function getShopInfoByLocation(req, res) {
-        
+
         //前處理request資料
         console.log('使用者:' + req.user_data.nickname + '搜尋附近的店家');
         console.time('getShopInfoByLocation');
         var lat = req.query.lat || 0;
         var lng = req.query.lng || 0;
         var offset = req.query.offset || 0;
-        
+
         //檢查是不是自串要把字串轉變成浮點數
         if (typeof (lat) !== 'number') {
             lat = parseFloat(lat);
             lng = parseFloat(lng);
             offset = parseInt(offset);
         }
-        
+
         //檢查使用者有沒有設定過喜愛店家
-        var favoriteCompany = req.user_data.favoriteCompany;
-        if(!favoriteCompany){
-            req.user_data.favoriteCompany = [];
-            var comps = company.find();
-            for(var i in comps){
-                req.user_data.favoriteCompany.push(comps[i].$loki);
-            }
-            favoriteCompany = req.user_data.favoriteCompany;
-        }
-        
+        var favoriteCompany = JSON.parse(req.user_data.favoriteCompany);
+
         //過濾喜歡的店家
-        function getFavorite(db_data){
+        function getFavorite(db_data) {
             var comp_id = db_data.company_id;
             var index = favoriteCompany.indexOf(comp_id);
-            if(index === -1){
+            if (index === -1) {
                 return false;
-            }else{
+            } else {
                 return true;
             }
         }
-        
+
         //根據GPS資訊重新排列
         function sortByLocation(obj1, obj2) {
             var dif_obj1 = Math.abs(obj1.lat - lat) + Math.abs(obj1.lng - lng);
@@ -329,9 +339,9 @@ var SampleApp = function () {
             }
             return 0;
         }
-        
+
         var return_list = shop.chain().where(getFavorite).sort(sortByLocation).offset(offset).limit(30).data();
-        
+
         res.json(return_list);
         console.timeEnd('getShopInfoByLocation');
     }
@@ -356,6 +366,7 @@ var SampleApp = function () {
     }
 
     function getMenuByShopId(req, res) {
+
         var shop_id = parseInt(req.params.shop_id);
 
         var shop_data = shop.get(shop_id);
@@ -371,8 +382,10 @@ var SampleApp = function () {
 
         //如果有取得menuid 從 menu資料庫拉資料出來
         if (menu_id) {
-            var menu_data = menu.get(menu_id);
-            res.json(menu_data);
+            Menu.findById(menu_id).then(function (data) {
+                data.list = JSON.parse(data.list);
+                res.json(data);
+            });
         } else {
             //如果沒有店家資料就
             res.status(404).send('no menu found')
@@ -435,125 +448,35 @@ var SampleApp = function () {
         res.json(object);
     }
 
-    function signup(req, res) {
-        var nickname = req.body.nickname;
-        var email = req.body.email;
-        var password = req.body.password;
-        //check email password
-        if (!nickname || !email || !password) {
-            res.status(401).json({
-                code: 0 //格式有問題
-            });
-            //記得要return 不然會繼續執行下面的程式
-            return;
-        }
-        //find user 
-        var user_data = user.findOne({
-            email: email
-        });
-        //如果使用者已經存在就不給通過
-        if (user_data) {
-            if (user_data.facebook_id) {
-                res.status(401).json({
-                    code: 1 //使用臉書註冊的用戶
-                });
-            } else {
-                res.status(401).json({
-                    code: 2 //重複註冊了
-                });
-            }
-        } else {
-            //make uuid token
-            var uuid_token = uuid.v4();
-            var encryt_password = sha256(password);
-            var user_data = {
-                nickname: nickname,
-                email: email,
-                password: encryt_password,
-                token: uuid_token
-            };
-            //存進資料庫裡面
-            user.insert(user_data);
-            //回傳 token 回去
-            userdb.save();
-            res.json({
-                token: uuid_token
-            });
-        }
-    }
 
-    function login(req, res) {
-        var email = req.body.email;
-        var password = req.body.password;
-        //check email password
-        if (!email || !password) {
-            loginerror();
-            return;
-        }
-        var user_data = user.findOne({
-            email: email
-        });
-
-        //檢查使用者資料有沒有找到
-        if (user_data) {
-            //如果是FACEBOOK 註冊帳號的話 就不能用普通的方式登入了
-            if (user_data.facebook_id) {
-                res.status(401).json({
-                    code: 1
-                });
-                return;
-            }
-            //配對密碼有無錯誤
-            var encryt_password = sha256(password);
-            //正確會回傳TOKEN
-            if (user_data.password === encryt_password) {
-                res.json(user_data);
-                return;
-            } else {
-                res.status(401).json({
-                    code: 0
-                });
-                return;
-            }
-        } else {
-            res.status(401).json({
-                code: 0
-            });
-            return;
-        }
-
-        //任何錯誤就回傳401 登入失敗
-        function loginerror() {
-            res.status(401).send('login error');
-        }
-    }
 
     //從 FACEBOOK 登入的
     //    {"id":"106191296386841","email":"imffqsz_zuckerson_1434104811@tfbnw.net","first_name":"Margaret","gender":"female","last_name":"Zuckerson","link":"https://www.facebook.com/app_scoped_user_id/106191296386841/","locale":"zh_TW","middle_name":"Amihgiabdejd","name":"Margaret Amihgiabdejd Zuckerson","timezone":0,"updated_time":"2015-06-12T10:27:01+0000","verified":false}
 
     function loginByFacebook(req, res) {
-        //尋找有沒有使用者的facebook_id符合
-        var user_data = user.findOne({
-            facebook_id: req.body.id
-        });
-
-        //有在我的server裡面有資訊就直接回傳 沒有的話幫他註冊以後回傳
-        if (user_data) {
-            res.json(user_data);
-        } else {
-            var data = {
-                facebook_id: req.body.id,
+        //初始化喜好店家
+        var comps = company.find();
+        var favcomp = [];
+        for (var i in comps) {
+            favcomp.push(comps[i].$loki);
+        }
+        //尋找或是創建
+        User.findOrCreate({
+            where: {
+                facebook_id: req.body.id
+            },
+            defaults: {
                 email: req.body.email,
                 nickname: req.body.name,
                 link: req.body.link,
                 locale: req.body.locale,
-                token: uuid.v4()
-            };
-            user.insert(data);
-            userdb.save();
-            console.log('user:' + data.nickname + ' register');
-            res.json(data);
-        }
+                token: uuid.v4(),
+                //喜歡的店家
+                favoriteCompany: JSON.stringify(favcomp)
+            }
+        }).spread(function (userdata, create) {
+            res.json(userdata);
+        });
     }
 
 
@@ -570,16 +493,20 @@ var SampleApp = function () {
     //檢查token
     function checkToken(req, res, next) {
         var token = req.headers.token;
-        var user_data = user.findOne({
-            token: token
+        User.findOne({
+            where: {
+                token: token
+            }
+        }).then(function (data) {
+            if (data) {
+                req.user_data = data.get();
+                //pass data to next middleware
+
+                next();
+            } else {
+                res.status(401).send('no permission');
+            }
         });
-        if (user_data) {
-            //pass data to next middleware
-            req.user_data = user_data;
-            next();
-        } else {
-            res.status(401).send('no permission');
-        }
     }
 
     // Add headers
@@ -599,38 +526,6 @@ var SampleApp = function () {
 
 
 }; /*  Sample Application.  */
-
-
-/**
- * @class DatabaseBackup
- */
-var DatabaseBackup = function () {
-    /**
-     * 啟動監看db自動備份
-     * @method start
-     */
-    this.start = function start() {
-
-    };
-    /**
-     * @private
-     * @method copyFile
-     * @param {string} source
-     * @param {string} target
-     * source and trarget means file path
-     */
-    function copyFile(source, target) {
-        return new Promise(function (resolve, reject) {
-            var rd = fs.createReadStream(source);
-            rd.on('error', reject);
-            var wr = fs.createWriteStream(target);
-            wr.on('error', reject);
-            wr.on('close', resolve);
-            rd.pipe(wr);
-        });
-    }
-};
-
 
 /**
  *  主程式
