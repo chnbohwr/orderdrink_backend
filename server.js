@@ -117,7 +117,10 @@ var SampleApp = function () {
                 link: Sequelize.STRING,
                 locale: Sequelize.STRING,
                 token: Sequelize.STRING,
-                favoriteCompany: Sequelize.TEXT
+                favoriteCompany: Sequelize.TEXT,
+                avatar: Sequelize.STRING,
+                avatar_thumb: Sequelize.STRING,
+                background: Sequelize.STRING
             });
 
             Comment = sequelize.define('comment', {
@@ -216,14 +219,14 @@ var SampleApp = function () {
         res.send('ok it\'s work');
     }
 
-    //FAVORITE userdb
+
     function uploadFavorite(req, res) {
+        var user = req.user_data;
         var array = req.body.favoriteCompany;
         if (Array.isArray(array)) {
-            req.user_data.favoriteCompany = array;
-            user.update(req.user_data);
-            userdb.save();
-            res.json(req.user_data);
+            user.favoriteCompany = JSON.stringify(array);
+            user.save();
+            res.json(user);
         } else {
             res.status(400).send('type error')
         }
@@ -234,6 +237,7 @@ var SampleApp = function () {
         var companies = company.find();
         res.json(companies);
     }
+
 
     function uploadAvatar(req, res) {
         var filename = req.files.files.name;
@@ -249,8 +253,7 @@ var SampleApp = function () {
                         }
                         user_data.avatar_thumb = filename + '_small.jpg';
                         user_data.avatar = filename + '_big.jpg';
-                        user.update(user_data);
-                        userdb.save();
+                        user_data.save();
                         console.log('user_data', user_data);
                         fs.unlink(req.files.files.path, function () {});
                         res.json(user_data);
@@ -262,6 +265,7 @@ var SampleApp = function () {
         })
     }
 
+
     function uploadBackground(req, res) {
         var filename = req.files.files.name;
         var newpath = './pic/' + filename;
@@ -272,8 +276,7 @@ var SampleApp = function () {
                     fs.unlink('./pic/' + user_data.background, function () {});
                 }
                 user_data.background = filename + '_back.jpg';
-                user.update(user_data);
-                userdb.save();
+                user_data.save();
                 console.log('user_data', user_data);
                 fs.unlink(req.files.files.path, function () {});
                 res.json(user_data);
@@ -283,6 +286,7 @@ var SampleApp = function () {
         })
     }
 
+    //todo
     function reportApp(req, res) {
         var data = req.body;
         data.user_id = req.user_data.$loki;
@@ -291,9 +295,11 @@ var SampleApp = function () {
         res.send('ok');
     }
 
+
     function setProfile(req, res) {
         var nickname = req.body.nickname;
         req.user_data.nickname = nickname;
+        req.user_data.save();
         res.send('ok');
     }
 
@@ -346,23 +352,25 @@ var SampleApp = function () {
         console.timeEnd('getShopInfoByLocation');
     }
 
-    //取得使用者的資料
+    
     function getUserData(req, res) {
         var user_id = parseInt(req.params.user_id);
-
-        var user_data = user.get(user_id);
-        console.log(user_data);
-        //如果找到資料了
-        if (user_data) {
-            var data = {
-                nickname: user_data.nickname,
-                avatar_thumb: user_data.avatar_thumb,
-                avatar: user_data.avatar
-            };
-            res.json(data);
-        } else {
-            res.status(404).send('can not find user');
-        }
+        User.findById(user_id).then(function (user_data) {
+            console.log(user_data);
+            //如果找到資料了
+            if (user_data) {
+                var data = {
+                    id:user_data.id,
+                    nickname: user_data.nickname,
+                    avatar_thumb: user_data.avatar_thumb,
+                    avatar: user_data.avatar,
+                    background:user_data.background
+                };
+                res.json(data);
+            } else {
+                res.status(404).send('can not find user');
+            }
+        });
     }
 
     function getMenuByShopId(req, res) {
@@ -400,6 +408,7 @@ var SampleApp = function () {
         res.json(shop_data);
     }
 
+    //todo
     function getShopComment(req, res) {
 
         var shop_id = req.params.shop_id;
@@ -423,6 +432,7 @@ var SampleApp = function () {
         res.json(data);
     }
 
+    //todo
     function createShopComment(req, res) {
 
         var user_id = req.user_data.$loki
@@ -448,7 +458,33 @@ var SampleApp = function () {
         res.json(object);
     }
 
+    //todo
+    function deleteComment(req, res) {
+        var comment_id = req.body.comment_id;
+        var dbcomment = comment.get(comment_id);
+        if (dbcomment) {
+            dbcomment.remove = true;
+            userdb.save();
+        }
+    }
 
+    //檢查token
+    function checkToken(req, res, next) {
+        var token = req.headers.token;
+        User.findOne({
+            where: {
+                token: token
+            }
+        }).then(function (data) {
+            if (data) {
+                req.user_data = data;
+                //pass data to next middleware
+                next();
+            } else {
+                res.status(401).send('no permission');
+            }
+        });
+    }
 
     //從 FACEBOOK 登入的
     //    {"id":"106191296386841","email":"imffqsz_zuckerson_1434104811@tfbnw.net","first_name":"Margaret","gender":"female","last_name":"Zuckerson","link":"https://www.facebook.com/app_scoped_user_id/106191296386841/","locale":"zh_TW","middle_name":"Amihgiabdejd","name":"Margaret Amihgiabdejd Zuckerson","timezone":0,"updated_time":"2015-06-12T10:27:01+0000","verified":false}
@@ -479,35 +515,6 @@ var SampleApp = function () {
         });
     }
 
-
-    //刪除評論
-    function deleteComment(req, res) {
-        var comment_id = req.body.comment_id;
-        var dbcomment = comment.get(comment_id);
-        if (dbcomment) {
-            dbcomment.remove = true;
-            userdb.save();
-        }
-    }
-
-    //檢查token
-    function checkToken(req, res, next) {
-        var token = req.headers.token;
-        User.findOne({
-            where: {
-                token: token
-            }
-        }).then(function (data) {
-            if (data) {
-                req.user_data = data.get();
-                //pass data to next middleware
-
-                next();
-            } else {
-                res.status(401).send('no permission');
-            }
-        });
-    }
 
     // Add headers
     function accewssOrigin(req, res, next) {
