@@ -130,6 +130,12 @@ var SampleApp = function () {
                 star: Sequelize.INTEGER,
             });
 
+            Report = sequelize.define('report', {
+                option: Sequelize.INTEGER,
+                message: Sequelize.STRING,
+                user_id: Sequelize.INTEGER
+            });
+
             sequelize.sync().then(initialLokidb);
         }
 
@@ -277,7 +283,6 @@ var SampleApp = function () {
                 }
                 user_data.background = filename + '_back.jpg';
                 user_data.save();
-                console.log('user_data', user_data);
                 fs.unlink(req.files.files.path, function () {});
                 res.json(user_data);
             } else {
@@ -288,11 +293,17 @@ var SampleApp = function () {
 
     //todo
     function reportApp(req, res) {
-        var data = req.body;
-        data.user_id = req.user_data.$loki;
-        data.create_on = new Date();
-        report.insert(data);
-        res.send('ok');
+        var message = req.body.message;
+        var option = req.body.option;
+        var user_id = req.user_data.id;
+
+        Report.create({
+            user_id: user_id,
+            message: message,
+            option: option
+        });
+
+        res.sendStatus(200);
     }
 
 
@@ -300,7 +311,7 @@ var SampleApp = function () {
         var nickname = req.body.nickname;
         req.user_data.nickname = nickname;
         req.user_data.save();
-        res.send('ok');
+        res.sendStatus(200);
     }
 
     function getShopInfoByLocation(req, res) {
@@ -352,19 +363,18 @@ var SampleApp = function () {
         console.timeEnd('getShopInfoByLocation');
     }
 
-    
+
     function getUserData(req, res) {
         var user_id = parseInt(req.params.user_id);
         User.findById(user_id).then(function (user_data) {
-            console.log(user_data);
             //如果找到資料了
             if (user_data) {
                 var data = {
-                    id:user_data.id,
+                    id: user_data.id,
                     nickname: user_data.nickname,
                     avatar_thumb: user_data.avatar_thumb,
                     avatar: user_data.avatar,
-                    background:user_data.background
+                    background: user_data.background
                 };
                 res.json(data);
             } else {
@@ -412,60 +422,53 @@ var SampleApp = function () {
     function getShopComment(req, res) {
 
         var shop_id = req.params.shop_id;
-        console.log('user:' + req.user_data.nickname + 'get shop comment:' + shop_id);
+
         var offset = req.params.offset;
 
-        function sortByDatetime(obj1, obj2) {
-            var diff = obj1.create_on - obj2.create_on;
-            if (diff > 0) {
-                return -1;
-            } else if (diff < 0) {
-                return 1;
-            } else {
-                return 0;
-            }
-        }
-        var data = comment.chain().find({
-            shop_id: shop_id
-        }).sort(sortByDatetime).offset(offset).limit(30).data();
-        console.log('getShopComment data', data);
-        res.json(data);
+        Comment.findAll({
+            where: {
+                shop_id: shop_id
+            },
+            limit: 30,
+            order: [['createdAt', 'DESC']]
+        }).then(function (datas) {
+            res.json(datas);
+        });
+
     }
 
-    //todo
+
     function createShopComment(req, res) {
 
-        var user_id = req.user_data.$loki
-            //評論文字
+        var user_id = req.user_data.id;
+        //評論文字
         var message = req.body.message;
         //店家ID
         var shop_id = req.params.shop_id;
         //星星評分數目
         var star = req.body.star;
 
-        console.log('user:' + req.user_data.nickname + 'send shop comment:' + shop_id);
-
         var object = {
             user_id: user_id,
             shop_id: shop_id,
             message: message,
-            star: star,
-            create_on: new Date()
+            star: star
         };
 
-        comment.insert(object);
-        userdb.save();
-        res.json(object);
+        Comment.create(object).then(function (comment) {
+            res.json(comment);
+        });
     }
 
-    //todo
+
     function deleteComment(req, res) {
         var comment_id = req.body.comment_id;
-        var dbcomment = comment.get(comment_id);
-        if (dbcomment) {
-            dbcomment.remove = true;
-            userdb.save();
-        }
+        Comment.destroy({
+            where: {
+                id: comment_id
+            }
+        });
+        res.sendStatus(200);
     }
 
     //檢查token
