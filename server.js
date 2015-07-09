@@ -23,8 +23,23 @@ var SqlConfig = require('./sqlconfig.js');
 var SampleApp = function () {
 
     var self = this;
-    var shop, company, Menu, User, Comment, Report;
+    var Shop, Company, Menu, User, Comment, Report, shops, companies;
     var pictureDir = './pic';
+
+    /**
+     *  Initializes the sample application.
+     */
+    self.initialize = function () {
+        self.setupVariables();
+        //設定監聽錯誤關閉
+        self.setupTerminationHandlers();
+        //讀取db
+        self.initialDatabase();
+        //設定路由
+        self.initializeServer();
+        //啟動
+        self.start();
+    };
 
     /**
      *  Set up server IP address and port # using env variables/defaults.
@@ -99,82 +114,69 @@ var SampleApp = function () {
     //初始化database 
     self.initialDatabase = function () {
 
-        function initialMariadb() {
-            var sequelize = new Sequelize(SqlConfig.dbname, SqlConfig.user, SqlConfig.password, {
-                host: SqlConfig.host,
-                dialect: SqlConfig.dialect
+        var sequelize = new Sequelize(SqlConfig.dbname, SqlConfig.user, SqlConfig.password, {
+            host: SqlConfig.host,
+            dialect: SqlConfig.dialect
+        });
+
+        Menu = sequelize.define('menu', {
+            name: Sequelize.STRING,
+            list: Sequelize.TEXT
+        });
+
+        User = sequelize.define('user', {
+            facebook_id: Sequelize.STRING,
+            email: Sequelize.STRING,
+            nickname: Sequelize.STRING,
+            link: Sequelize.STRING,
+            locale: Sequelize.STRING,
+            token: Sequelize.STRING,
+            favoriteCompany: Sequelize.TEXT,
+            avatar: Sequelize.STRING,
+            avatar_thumb: Sequelize.STRING,
+            background: Sequelize.STRING
+        });
+
+        Comment = sequelize.define('comment', {
+            user_id: Sequelize.INTEGER,
+            shop_id: Sequelize.INTEGER,
+            message: Sequelize.STRING,
+            star: Sequelize.INTEGER,
+        });
+
+        Report = sequelize.define('report', {
+            option: Sequelize.INTEGER,
+            message: Sequelize.STRING,
+            user_id: Sequelize.INTEGER
+        });
+
+
+        Shop = sequelize.define('shop', {
+            company_id: Sequelize.INTEGER,
+            company_name: Sequelize.STRING,
+            name: Sequelize.STRING,
+            address: Sequelize.STRING,
+            city: Sequelize.STRING,
+            lat: Sequelize.STRING,
+            lng: Sequelize.STRING,
+            phone: Sequelize.STRING,
+            menu_id: Sequelize.INTEGER
+        });
+
+        Company = sequelize.define('company', {
+            name: Sequelize.STRING,
+            menu_id: Sequelize.INTEGER
+        });
+
+        sequelize.sync().then(function () {
+            Shop.findAll().then(function (data) {
+                shops = data;
             });
 
-            Menu = sequelize.define('menu', {
-                name: Sequelize.STRING,
-                list: Sequelize.TEXT
+            Company.findAll().then(function (data) {
+                companies = data;
             });
-
-            User = sequelize.define('user', {
-                facebook_id: Sequelize.STRING,
-                email: Sequelize.STRING,
-                nickname: Sequelize.STRING,
-                link: Sequelize.STRING,
-                locale: Sequelize.STRING,
-                token: Sequelize.STRING,
-                favoriteCompany: Sequelize.TEXT,
-                avatar: Sequelize.STRING,
-                avatar_thumb: Sequelize.STRING,
-                background: Sequelize.STRING
-            });
-
-            Comment = sequelize.define('comment', {
-                user_id: Sequelize.INTEGER,
-                shop_id: Sequelize.INTEGER,
-                message: Sequelize.STRING,
-                star: Sequelize.INTEGER,
-            });
-
-            Report = sequelize.define('report', {
-                option: Sequelize.INTEGER,
-                message: Sequelize.STRING,
-                user_id: Sequelize.INTEGER
-            });
-
-            sequelize.sync().then(initialLokidb);
-        }
-
-        function initialLokidb() {
-            //initial lokidb shop data 
-            lokidb.loadDatabase({}, function () {
-
-                shop = lokidb.getCollection('shop');
-                company = lokidb.getCollection('company');
-
-                if (shop === null) {
-                    shop = lokidb.addCollection('shop');
-                }
-                if (company === null) {
-                    company = lokidb.addCollection('company');
-                }
-
-                console.log('load shop items', shop.idIndex.length);
-                console.log('load company items', company.idIndex.length);
-
-            });
-
-            self.initializeServer();
-        }
-
-        initialMariadb();
-    };
-
-
-
-    /**
-     *  Initializes the sample application.
-     */
-    self.initialize = function () {
-        self.setupVariables();
-        //self.populateCache();
-        self.setupTerminationHandlers();
-        self.initialDatabase();
-        // Create the express server and routes.
+        });
 
     };
 
@@ -240,7 +242,6 @@ var SampleApp = function () {
     }
 
     function getComapnies(req, res) {
-        var companies = company.find();
         res.json(companies);
     }
 
@@ -315,9 +316,6 @@ var SampleApp = function () {
     }
 
     function getShopInfoByLocation(req, res) {
-
-        //前處理request資料
-        console.log('使用者:' + req.user_data.nickname + '搜尋附近的店家');
         console.time('getShopInfoByLocation');
         var lat = req.query.lat || 0;
         var lng = req.query.lng || 0;
@@ -330,7 +328,7 @@ var SampleApp = function () {
             offset = parseInt(offset);
         }
 
-        //檢查使用者有沒有設定過喜愛店家
+
         var favoriteCompany = JSON.parse(req.user_data.favoriteCompany);
 
         //過濾喜歡的店家
@@ -357,9 +355,12 @@ var SampleApp = function () {
             return 0;
         }
 
-        var return_list = shop.chain().where(getFavorite).sort(sortByLocation).offset(offset).limit(30).data();
+        var newdata = shops.filter(getFavorite).sort(sortByLocation).splice(0, 30);
 
-        res.json(return_list);
+        console.log('newdata.length', newdata.length, '  shops.length', shops.length);
+
+        res.json(newdata);
+
         console.timeEnd('getShopInfoByLocation');
     }
 
@@ -384,18 +385,30 @@ var SampleApp = function () {
     }
 
     function getMenuByShopId(req, res) {
-
+        console.time('getMenuByShopId');
         var shop_id = parseInt(req.params.shop_id);
-
-        var shop_data = shop.get(shop_id);
-
+        var shop_data,company_data;
+        
+        for(var i in shops){
+            var shopnow = shops[i];
+            if(shopnow.id === shop_id){
+                shop_data = shopnow;
+                break;
+            }
+        }
+       
         var menu_id = shop_data.menu_id;
-
 
         //取不到商店的 menu 就去取得公司
         if (!menu_id) {
-            var company_data = company.get(shop_data.company_id)
-            menu_id = company_data.menu_id;
+            for(var j in companies){
+                var companynow = companies[j];
+                if(companynow.id === shop_data.company_id){
+                    company_data = companynow;
+                    menu_id = company_data.menu_id;
+                    break;
+                }
+            }
         }
 
         //如果有取得menuid 從 menu資料庫拉資料出來
@@ -408,14 +421,17 @@ var SampleApp = function () {
             //如果沒有店家資料就
             res.status(404).send('no menu found')
         }
+        
+        console.timeEnd('getMenuByShopId');
     }
 
     //取得店家詳細資料
     function getShopData(req, res) {
         var shop_id = req.params.shop_id;
-        console.log('user:' + req.user_data.nickname + 'get shop data:' + shop_id);
-        var shop_data = shop.get(shop_id);
-        res.json(shop_data);
+        Shop.findById(shop_id).then(function (shop_data) {
+            res.json(shop_data);
+        });
+
     }
 
     //todo
@@ -542,4 +558,3 @@ var SampleApp = function () {
  */
 var mainApp = new SampleApp();
 mainApp.initialize();
-mainApp.start();
