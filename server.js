@@ -8,8 +8,6 @@ var fs = require('fs');
 var gm = require('gm').subClass({
     imageMagick: true
 });
-var loki = require('lokijs');
-var lokidb = new loki('shop.json');
 var uuid = require('node-uuid');
 var sha256 = require('sha256');
 
@@ -510,10 +508,10 @@ var SampleApp = function () {
 
     function loginByFacebook(req, res) {
         //初始化喜好店家
-        var comps = company.find();
+        
         var favcomp = [];
-        for (var i in comps) {
-            favcomp.push(comps[i].$loki);
+        for (var i in companies) {
+            favcomp.push(companies[i].id);
         }
         //尋找或是創建
         User.findOrCreate({
