@@ -132,7 +132,8 @@ var SampleApp = function () {
             favoriteCompany: Sequelize.TEXT,
             avatar: Sequelize.STRING,
             avatar_thumb: Sequelize.STRING,
-            background: Sequelize.STRING
+            background: Sequelize.STRING,
+            password: Sequelize.STRING,
         });
 
         Comment = sequelize.define('comment', {
@@ -215,8 +216,8 @@ var SampleApp = function () {
         app.post('/api/uploadBackground', checkToken, uploadBackground);
         app.post('/api/uploadFavorite/', checkToken, uploadFavorite)
         app.post('/api/report/', checkToken, reportApp);
-        //app.post('/signup/', signup);
-        //app.post('/login/', login);
+        app.post('/signup/', signup);
+        app.post('/login/', login);
         app.post('/login/facebook/', loginByFacebook);
         app.get('/', test)
     };
@@ -385,23 +386,23 @@ var SampleApp = function () {
     function getMenuByShopId(req, res) {
         console.time('getMenuByShopId');
         var shop_id = parseInt(req.params.shop_id);
-        var shop_data,company_data;
-        
-        for(var i in shops){
+        var shop_data, company_data;
+
+        for (var i in shops) {
             var shopnow = shops[i];
-            if(shopnow.id === shop_id){
+            if (shopnow.id === shop_id) {
                 shop_data = shopnow;
                 break;
             }
         }
-       
+
         var menu_id = shop_data.menu_id;
 
         //取不到商店的 menu 就去取得公司
         if (!menu_id) {
-            for(var j in companies){
+            for (var j in companies) {
                 var companynow = companies[j];
-                if(companynow.id === shop_data.company_id){
+                if (companynow.id === shop_data.company_id) {
                     company_data = companynow;
                     menu_id = company_data.menu_id;
                     break;
@@ -419,7 +420,7 @@ var SampleApp = function () {
             //如果沒有店家資料就
             res.status(404).send('no menu found')
         }
-        
+
         console.timeEnd('getMenuByShopId');
     }
 
@@ -508,7 +509,6 @@ var SampleApp = function () {
 
     function loginByFacebook(req, res) {
         //初始化喜好店家
-        
         var favcomp = [];
         for (var i in companies) {
             favcomp.push(companies[i].id);
@@ -532,6 +532,77 @@ var SampleApp = function () {
         });
     }
 
+    //用使用者名稱密碼登入
+    function login(req, res) {
+        var email = req.body.email;
+        var password = sha256(req.body.password);
+        User.findOne({
+            where: {
+                email: email
+            }
+        }).then(function (user_data) {
+            if (user_data) {
+                if (user_data.password === password) {
+                    res.json(user_data);
+                } else {
+                    if (user_data.facebook_id) {
+                        res.status(402).send('facebook');
+                    } else {
+                        res.status(401).send('no permission');
+                    }
+                }
+            } else {
+                res.status(400).send('no username');
+            }
+
+        });
+    }
+
+    //檢查 username 有沒有重複
+    function checkEmail(req, res) {
+
+    }
+
+    //註冊
+    function signup(req, res) {
+        //初始化喜好店家
+        var favcomp = [];
+        for (var i in companies) {
+            favcomp.push(companies[i].id);
+        }
+
+        var email = req.body.email;
+        var nickname = req.body.nickname;
+        var password = sha256(req.body.password);
+        User.findOne({
+            where: {
+                email: email
+            }
+        }).then(function (user_data) {
+            if (user_data) {
+                if (user_data.facebook_id) {
+                    res.status(402).send('facebook');
+                } else {
+                    res.status(403).send('user has reg');
+                }
+            } else {
+                User.create({
+                    nickname: nickname,
+                    email: email,
+                    password: password,
+                    token: uuid.v4(),
+                    //喜歡的店家
+                    favoriteCompany: JSON.stringify(favcomp)
+                }).then(function (user_data) {
+                    res.json(user_data);
+                });
+            }
+        });
+    }
+
+    function forgetPassword(req, res) {
+
+    }
 
     // Add headers
     function accewssOrigin(req, res, next) {
