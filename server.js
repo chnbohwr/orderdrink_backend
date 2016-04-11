@@ -43,7 +43,7 @@ var setupVariables = function () {
     //檢查有沒有設定環境常數，如果沒有就用指定的
     ipaddress = process.env.IP || "127.0.0.1";
     //                ipaddress = process.env.IP || "127.0.0.1";
-    port = process.env.PORT || "14789";
+    port = process.env.PORT || "8080";
 
     if (!fs.existsSync(pictureDir)) {
         fs.mkdirSync(pictureDir);
