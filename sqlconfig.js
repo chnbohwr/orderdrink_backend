@@ -1,7 +1,7 @@
 var data = {
 	dbname:'orderdrink',
-	user:'orderdrink',
-	password:'1qaz2wsx#EDC',
+	user:'adminQRplQAG',
+	password:'ClqsljiYhv1D',
 	host:'localhost',
 	dialect: 'mysql'
 };
