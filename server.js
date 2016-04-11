@@ -44,28 +44,13 @@ var SampleApp = function () {
      */
     self.setupVariables = function () {
         //檢查有沒有設定環境常數，如果沒有就用指定的
-        self.ipaddress = process.env.IP || "orderdrink.ddns.net";
+        self.ipaddress = process.env.IP || "127.0.0.1";
         //                self.ipaddress = process.env.IP || "127.0.0.1";
-        self.port = process.env.PORT || 14789;
+        self.port = process.env.PORT || 80;
 
         if (!fs.existsSync(pictureDir)) {
             fs.mkdirSync(pictureDir);
         }
-    };
-
-    /**
-     *  快取一些資料，未來後台管理介面要使用網站會需要用到
-     */
-    self.populateCache = function () {
-        //如果沒有zcache就先做個初始化的出來
-        if (typeof self.zcache === "undefined") {
-            self.zcache = {
-                'index.html': ''
-            };
-        }
-
-        //把檔案讀取成字串先存進去記憶體
-        self.zcache['index.html'] = fs.readFileSync('./index.html');
     };
 
     /**
