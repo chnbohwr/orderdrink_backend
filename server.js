@@ -82,9 +82,10 @@ var setupTerminationHandlers = function () {
 
 //初始化database 
 var initialDatabase = function () {
-
+    console.log(SqlConfig);
     var sequelize = new Sequelize(SqlConfig.dbname, SqlConfig.user, SqlConfig.password, {
         host: SqlConfig.host,
+        port: SqlConfig.port,
         dialect: SqlConfig.dialect
     });
 
