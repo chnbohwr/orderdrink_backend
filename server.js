@@ -176,13 +176,13 @@ var initializeServer = function () {
         extended: true
     }));
     app.use(accewssOrigin);
-    app.get('/api/location/', checkToken, getShopInfoByLocation);
-    app.get('/api/shop/:shop_id/menu/', checkToken, getMenuByShopId);
-    app.get('/api/shop/:shop_id/', checkToken, getShopData);
-    app.get('/api/shop/:shop_id/comment/', checkToken, getShopComment);
+    app.get('/api/location/', getShopInfoByLocation);
+    app.get('/api/shop/:shop_id/menu/', getMenuByShopId);
+    app.get('/api/shop/:shop_id/', getShopData);
+    app.get('/api/shop/:shop_id/comment/', getShopComment);
+    app.get('/api/comapnies/', getComapnies)
+    app.get('/api/user/:user_id/', getUserData);
     app.post('/api/shop/:shop_id/comment/', checkToken, createShopComment);
-    app.get('/api/comapnies/', checkToken, getComapnies)
-    app.get('/api/user/:user_id/', checkToken, getUserData);
     app.post('/api/profile/', checkToken, setProfile);
     app.post('/api/uploadAvatar/', checkToken, uploadAvatar);
     app.post('/api/uploadBackground', checkToken, uploadBackground);
