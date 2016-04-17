@@ -29,7 +29,7 @@ function initialize() {
         fs.mkdirSync(pictureDir);
     }
     
-    setupTerminationHandlers();
+    //setupTerminationHandlers();
     //讀取db
     initialDatabase();
     //設定路由
@@ -39,34 +39,34 @@ function initialize() {
 };
 
 
-var terminator = function () {
-    if (typeof sig === "string") {
-        console.log('%s: Received %s - terminating sample app ...',
-            Date(Date.now()), sig);
-        process.exit();
-    }
-    console.log('%s: Node server stopped.', Date(Date.now()));
-};
-
-
-/**
- *  設定關閉程式的接收資訊，把檔案放在雲端平台的時候方便管理
- */
-var setupTerminationHandlers = function () {
-    //  Process on exit and signals.
-    process.on('exit', function () {
-        terminator();
-    });
-
-    // Removed 'SIGPIPE' from the list - bugz 852598.
-    ['SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT',
-     'SIGBUS', 'SIGFPE', 'SIGUSR1', 'SIGSEGV', 'SIGUSR2', 'SIGTERM'
-    ].forEach(function (element, index, array) {
-        process.on(element, function () {
-            terminator();
-        });
-    });
-};
+//var terminator = function () {
+//    if (typeof sig === "string") {
+//        console.log('%s: Received %s - terminating sample app ...',
+//            Date(Date.now()), sig);
+//        process.exit();
+//    }
+//    console.log('%s: Node server stopped.', Date(Date.now()));
+//};
+//
+//
+///**
+// *  設定關閉程式的接收資訊，把檔案放在雲端平台的時候方便管理
+// */
+//var setupTerminationHandlers = function () {
+//    //  Process on exit and signals.
+//    process.on('exit', function () {
+//        terminator();
+//    });
+//
+//    // Removed 'SIGPIPE' from the list - bugz 852598.
+//    ['SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT',
+//     'SIGBUS', 'SIGFPE', 'SIGUSR1', 'SIGSEGV', 'SIGUSR2', 'SIGTERM'
+//    ].forEach(function (element, index, array) {
+//        process.on(element, function () {
+//            terminator();
+//        });
+//    });
+//};
 
 //初始化database 
 var initialDatabase = function () {    
@@ -179,12 +179,12 @@ var initializeServer = function () {
         extended: true
     }));
     app.use(accewssOrigin);
-    app.get('/api/location/', getShopInfoByLocation);
-    app.get('/api/shop/:shop_id/menu/', getMenuByShopId);
-    app.get('/api/shop/:shop_id/', getShopData);
-    app.get('/api/shop/:shop_id/comment/', getShopComment);
-    app.get('/api/comapnies/', getComapnies)
-    app.get('/api/user/:user_id/', getUserData);
+    app.get('/api/location/', softCheckToken, getShopInfoByLocation);
+    app.get('/api/shop/:shop_id/menu/', softCheckToken, getMenuByShopId);
+    app.get('/api/shop/:shop_id/', softCheckToken, getShopData);
+    app.get('/api/shop/:shop_id/comment/', softCheckToken, getShopComment);
+    app.get('/api/comapnies/', softCheckToken, getComapnies)
+    app.get('/api/user/:user_id/', softCheckToken, getUserData);
     app.post('/api/shop/:shop_id/comment/', checkToken, createShopComment);
     app.post('/api/profile/', checkToken, setProfile);
     app.post('/api/uploadAvatar/', checkToken, uploadAvatar);
@@ -294,6 +294,7 @@ function getShopInfoByLocation(req, res) {
     var lat = req.query.lat || 0;
     var lng = req.query.lng || 0;
     var offset = req.query.offset || 0;
+    var favoriteCompany;
 
     //檢查是不是自串要把字串轉變成浮點數
     if (typeof (lat) !== 'number') {
@@ -301,12 +302,21 @@ function getShopInfoByLocation(req, res) {
         lng = parseFloat(lng);
         offset = parseInt(offset);
     }
-
-   
-    var favoriteCompany = JSON.parse(req.user_data.favoriteCompany);
+    
+    // 如果有使用者資料才拿
+    if (req.user_data) {
+        favoriteCompany = JSON.parse(req.user_data.favoriteCompany);
+    }
+    
 
     //過濾喜歡的店家
     function getFavorite(db_data) {
+        
+        //如果沒有登入就預設每個店家都印出來
+        if (!favoriteCompany) {
+            return true;
+        }
+        
         var comp_id = db_data.company_id;
         var index = favoriteCompany.indexOf(comp_id);
         if (index === -1) {
@@ -477,6 +487,18 @@ function checkToken(req, res, next) {
             res.status(401).send('no permission');
         }
     });
+}
+
+//不強制產生 error401 的檢查登入
+function softCheckToken (req, res, next){
+    var token = req.headers.token;
+    
+    //如果有 token 就直接用 checktoken 的功能
+    if(token) {
+        checkToken(req, res, next);
+    } else {
+        next();
+    }
 }
 
 //從 FACEBOOK 登入的
