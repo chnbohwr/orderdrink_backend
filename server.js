@@ -5,28 +5,30 @@ var app = express();
 var bodyParser = require('body-parser');
 var multer = require('multer')
 var fs = require('fs');
-//var gm = require('gm').subClass({
-//    imageMagick: true
-//});
+var gm = require('gm').subClass({
+    imageMagick: true
+});
 var uuid = require('node-uuid');
 var sha256 = require('sha256');
-
-//import sequlize
 var Sequelize = require('sequelize');
-var SqlConfig = require('./sqlconfig.js');
 
+//load config file
+var config = require('./config.js');
 
+// define classname
 var Shop, Company, Menu, User, Comment, Report, shops, companies;
 var pictureDir = './pic';
 
-var ipaddress, port;
 
 /**
  *  Initializes the sample application.
  */
 function initialize() {
-    setupVariables();
-    //設定監聽錯誤關閉
+    
+    if (!fs.existsSync(pictureDir)) {
+        fs.mkdirSync(pictureDir);
+    }
+    
     setupTerminationHandlers();
     //讀取db
     initialDatabase();
@@ -34,20 +36,6 @@ function initialize() {
     initializeServer();
     //啟動
     start();
-};
-
-/**
- *  Set up server IP address and port # using env variables/defaults.
- */
-var setupVariables = function () {
-    //檢查有沒有設定環境常數，如果沒有就用指定的
-    ipaddress = process.env.OPENSHIFT_NODEJS_IP || "127.0.0.1";
-    //                ipaddress = process.env.IP || "127.0.0.1";
-    port = process.env.OPENSHIFT_NODEJS_PORT || "8080";
-
-    if (!fs.existsSync(pictureDir)) {
-        fs.mkdirSync(pictureDir);
-    }
 };
 
 
@@ -81,12 +69,19 @@ var setupTerminationHandlers = function () {
 };
 
 //初始化database 
-var initialDatabase = function () {
-    console.log(SqlConfig);
-    var sequelize = new Sequelize(SqlConfig.dbname, SqlConfig.user, SqlConfig.password, {
-        host: SqlConfig.host,
-        port: SqlConfig.port,
-        dialect: SqlConfig.dialect
+var initialDatabase = function () {    
+    var sql_config;
+    
+    if (process.env.OPENSHIFT_APP_NAME) {
+        sql_config = config.production.sql;
+    } else {
+        sql_config = config.dev.sql;
+    }
+    
+    var sequelize = new Sequelize(sql_config.dbname, sql_config.user, sql_config.password, {
+        host: sql_config.host,
+        port: sql_config.port,
+        dialect: sql_config.dialect
     });
 
     Menu = sequelize.define('menu', {
@@ -155,10 +150,18 @@ var initialDatabase = function () {
  *  Start the server (starts up the sample application).
  */
 var start = function () {
+    var ip, port;
+    if(process.env.OPENSHIFT_APP_NAME) {
+        ip = config.production.env.ip;
+        port = config.production.env.port;
+    } else {
+        ip = config.dev.env.ip;
+        port = config.dev.env.port;
+    }
     //  Start the app on the specific interface (and port).
-    app.listen(port, ipaddress, function () {
+    app.listen(port, ip, function () {
         console.log('%s: Node server started on %s:%d ...',
-            Date(Date.now()), ipaddress, port);
+            Date(Date.now()), ip, port);
     });
 };
 
@@ -299,7 +302,7 @@ function getShopInfoByLocation(req, res) {
         offset = parseInt(offset);
     }
 
-
+   
     var favoriteCompany = JSON.parse(req.user_data.favoriteCompany);
 
     //過濾喜歡的店家

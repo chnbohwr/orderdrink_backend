@@ -24,8 +24,7 @@
     "mysql": "^2.7.0",
     "node-uuid": "^1.4.3",
     "sequelize": "^3.3.2",
-    "sha256": "^0.2.0",
-    "webdriverio": "^2.4.5"
+    "sha256": "^0.2.0"
   },
   "devDependencies": {},
   "bundleDependencies": [],
