@@ -294,7 +294,7 @@ function getShopInfoByLocation(req, res) {
     var lat = req.query.lat || 0;
     var lng = req.query.lng || 0;
     var offset = req.query.offset || 0;
-    var favoriteCompany;
+    var favoriteCompany = undefined;
 
     //檢查是不是自串要把字串轉變成浮點數
     if (typeof (lat) !== 'number') {
@@ -305,6 +305,7 @@ function getShopInfoByLocation(req, res) {
     
     // 如果有使用者資料才拿
     if (req.user_data) {
+        console.log('has user data')
         favoriteCompany = JSON.parse(req.user_data.favoriteCompany);
     }
     
