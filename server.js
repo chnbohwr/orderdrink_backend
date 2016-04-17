@@ -305,7 +305,6 @@ function getShopInfoByLocation(req, res) {
     
     // 如果有使用者資料才拿
     if (req.user_data) {
-        console.log('has user data')
         favoriteCompany = JSON.parse(req.user_data.favoriteCompany);
     }
     
