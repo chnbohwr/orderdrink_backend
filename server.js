@@ -4,7 +4,7 @@ var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
 var multer = require('multer');
-var request = require('request');
+var download = require('download-file');
 var fs = require('fs');
 var gm = require('gm').subClass({
     imageMagick: true
@@ -18,18 +18,20 @@ var config = require('./config.js');
 
 // define classname
 var Shop, Company, Menu, User, Comment, Report, shops, companies;
-var pictureDir = './pic';
+var pictureDir = './pic/';
 
+
+var white_list = ['/login/facebook/'];
 
 /**
  *  Initializes the sample application.
  */
 function initialize() {
-    
+
     if (!fs.existsSync(pictureDir)) {
         fs.mkdirSync(pictureDir);
     }
-    
+
     //setupTerminationHandlers();
     //讀取db
     initialDatabase();
@@ -39,50 +41,21 @@ function initialize() {
     start();
 };
 
-
-//var terminator = function () {
-//    if (typeof sig === "string") {
-//        console.log('%s: Received %s - terminating sample app ...',
-//            Date(Date.now()), sig);
-//        process.exit();
-//    }
-//    console.log('%s: Node server stopped.', Date(Date.now()));
-//};
-//
-//
-///**
-// *  設定關閉程式的接收資訊，把檔案放在雲端平台的時候方便管理
-// */
-//var setupTerminationHandlers = function () {
-//    //  Process on exit and signals.
-//    process.on('exit', function () {
-//        terminator();
-//    });
-//
-//    // Removed 'SIGPIPE' from the list - bugz 852598.
-//    ['SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT',
-//     'SIGBUS', 'SIGFPE', 'SIGUSR1', 'SIGSEGV', 'SIGUSR2', 'SIGTERM'
-//    ].forEach(function (element, index, array) {
-//        process.on(element, function () {
-//            terminator();
-//        });
-//    });
-//};
-
 //初始化database 
-var initialDatabase = function () {    
+var initialDatabase = function () {
     var sql_config;
-    
+
     if (process.env.OPENSHIFT_APP_NAME) {
         sql_config = config.production.sql;
     } else {
         sql_config = config.dev.sql;
     }
-    
+
     var sequelize = new Sequelize(sql_config.dbname, sql_config.user, sql_config.password, {
         host: sql_config.host,
         port: sql_config.port,
-        dialect: sql_config.dialect
+        dialect: sql_config.dialect,
+        logging: false
     });
 
     Menu = sequelize.define('menu', {
@@ -152,7 +125,7 @@ var initialDatabase = function () {
  */
 var start = function () {
     var ip, port;
-    if(process.env.OPENSHIFT_APP_NAME) {
+    if (process.env.OPENSHIFT_APP_NAME) {
         ip = config.production.env.ip;
         port = config.production.env.port;
     } else {
@@ -191,8 +164,8 @@ var initializeServer = function () {
     //app.post('/api/uploadBackground', uploadBackground);
     app.post('/api/uploadFavorite/', uploadFavorite)
     app.post('/api/report/', reportApp);
-    app.post('/signup/', signup);
-    app.post('/login/', login);
+    //app.post('/signup/', signup);
+    //app.post('/login/', login);
     app.post('/login/facebook/', loginByFacebook);
     app.get('/', test);
 };
@@ -212,7 +185,6 @@ function uploadFavorite(req, res) {
     } else {
         res.status(400).send('type error')
     }
-    console.log('使用者:' + req.user_data.nickname + '更新喜好列表');
 }
 
 function getComapnies(req, res) {
@@ -243,7 +215,7 @@ function setProfile(req, res) {
 }
 
 function getShopInfoByLocation(req, res) {
-    console.time('getShopInfoByLocation');
+
     var lat = req.query.lat || 0;
     var lng = req.query.lng || 0;
     var offset = req.query.offset || 0;
@@ -255,21 +227,21 @@ function getShopInfoByLocation(req, res) {
         lng = parseFloat(lng);
         offset = parseInt(offset);
     }
-    
+
     // 如果有使用者資料才拿
     if (req.user_data) {
         favoriteCompany = JSON.parse(req.user_data.favoriteCompany);
     }
-    
+
 
     //過濾喜歡的店家
     function getFavorite(db_data) {
-        
+
         //如果沒有登入就預設每個店家都印出來
         if (!favoriteCompany) {
             return true;
         }
-        
+
         var comp_id = db_data.company_id;
         var index = favoriteCompany.indexOf(comp_id);
         if (index === -1) {
@@ -294,11 +266,9 @@ function getShopInfoByLocation(req, res) {
 
     var newdata = shops.filter(getFavorite).sort(sortByLocation).splice(0, 30);
 
-    console.log('newdata.length', newdata.length, '  shops.length', shops.length);
 
     res.json(newdata);
 
-    console.timeEnd('getShopInfoByLocation');
 }
 
 
@@ -322,7 +292,7 @@ function getUserData(req, res) {
 }
 
 function getMenuByShopId(req, res) {
-    console.time('getMenuByShopId');
+
     var shop_id = parseInt(req.params.shop_id);
     var shop_data, company_data;
 
@@ -359,7 +329,6 @@ function getMenuByShopId(req, res) {
         res.status(404).send('no menu found')
     }
 
-    console.timeEnd('getMenuByShopId');
 }
 
 //取得店家詳細資料
@@ -426,24 +395,30 @@ function deleteComment(req, res) {
 
 //檢查token
 function checkToken(req, res, next) {
+
     var token = req.headers.token;
-    
-    if (req.method === 'GET'){
+
+    if (req.method === 'GET') {
         if (token) {
             check(true);
         } else {
-            next();    
+            next();
         }
-        
+
     } else {
-        check(false);
-    }
-    
-    function check(allow_pass){
-        User.findOne({
-        where: {
-            token: token
+        //white list
+        if (white_list.indexOf(req.url) > -1) {
+            check(true);
+        } else {
+            check(false);
         }
+    }
+
+    function check(allow_pass) {
+        User.findOne({
+            where: {
+                token: token
+            }
         }).then(function (data) {
             if (data) {
                 req.user_data = data;
@@ -451,24 +426,24 @@ function checkToken(req, res, next) {
                 next();
             } else {
                 if (allow_pass === true) {
-                    next();     
+                    next();
                 } else {
                     res.status(401).send('no permission');
                 }
             }
         });
     }
-    
+
 }
 
-function logger(req, res, next){
+function logger(req, res, next) {
     var nickname;
-    if (req.user_data){
+    if (req.user_data) {
         nickname = req.user_data.nickname;
     } else {
         nickname = 'Anonymous';
     }
-    
+
     console.log('Date: ' + new Date());
     console.log('User: ' + nickname);
     console.log('Token: ', req.headers.token);
@@ -480,107 +455,85 @@ function logger(req, res, next){
 }
 
 
-//從 FACEBOOK 登入的
-//    {"id":"106191296386841","email":"imffqsz_zuckerson_1434104811@tfbnw.net","first_name":"Margaret","gender":"female","last_name":"Zuckerson","link":"https://www.facebook.com/app_scoped_user_id/106191296386841/","locale":"zh_TW","middle_name":"Amihgiabdejd","name":"Margaret Amihgiabdejd Zuckerson","timezone":0,"updated_time":"2015-06-12T10:27:01+0000","verified":false}
+/*從 FACEBOOK 登入的
+{
+  "picture": {
+    "data": {
+      "is_silhouette": false,
+      "url": "https://scontent.xx.fbcdn.net/v/t1.0-1/p200x200/11406851_10152978155886375_2082500097674482510_n.jpg?oh=aff7f64b662e7772b938c5d660c5a556&oe=57A8D78C"
+    }
+  },
+  "id": "1234",
+  "name": "asdf",
+  "email": "asdf@yahoo.com.tw",
+  "cover": {
+    "id": "1234",
+    "offset_y": 30,
+    "source": "https://scontent.xx.fbcdn.net/v/t1.0-9/p720x720/11426494_10152978155731375_4238593846195340341_n.jpg?oh=4bfd3d04ad5d143c75a126a55566d516&oe=57A644B5"
+  }
+}
+*/
 
 function loginByFacebook(req, res) {
     //初始化喜好店家
     var favcomp = [];
+    var picture_url = req.body.picture.data.url;
     for (var i in companies) {
         favcomp.push(companies[i].id);
     }
     //尋找或是創建
-    User.findOrCreate({
+    User.findOne({
         where: {
             facebook_id: req.body.id
-        },
-        defaults: {
-            email: req.body.email,
-            nickname: req.body.name,
-            link: req.body.link,
-            locale: req.body.locale,
-            token: uuid.v4(),
-            //喜歡的店家
-            favoriteCompany: JSON.stringify(favcomp)
         }
-    }).spread(function (userdata, create) {
-        res.json(userdata);
-    });
-}
+    }).then(function (userdata) {
 
-
-
-//用使用者名稱密碼登入
-function login(req, res) {
-    var email = req.body.email;
-    var password = sha256(req.body.password);
-    User.findOne({
-        where: {
-            email: email
-        }
-    }).then(function (user_data) {
-        if (user_data) {
-            if (user_data.password === password) {
-                res.json(user_data);
-            } else {
-                if (user_data.facebook_id) {
-                    res.status(402).send('facebook');
-                } else {
-                    res.status(401).send('no permission');
-                }
-            }
-        } else {
-            res.status(400).send('no username');
-        }
-
-    });
-}
-
-//檢查 username 有沒有重複
-function checkEmail(req, res) {
-
-}
-
-//註冊
-function signup(req, res) {
-    //初始化喜好店家
-    var favcomp = [];
-    for (var i in companies) {
-        favcomp.push(companies[i].id);
-    }
-
-    var email = req.body.email;
-    var nickname = req.body.nickname;
-    var password = sha256(req.body.password);
-    User.findOne({
-        where: {
-            email: email
-        }
-    }).then(function (user_data) {
-        if (user_data) {
-            if (user_data.facebook_id) {
-                res.status(402).send('facebook');
-            } else {
-                res.status(403).send('user has reg');
-            }
+        // 如果已經有了就更新，反之新增
+        if (userdata) {
+            userdata.name = req.body.name;
+            userdata.email = req.body.email;
+            userdata.locale = req.body.locale;
+            userdata.link = req.body.link;
+            downloadAvatar(userdata);
         } else {
             User.create({
-                nickname: nickname,
-                email: email,
-                password: password,
+                facebook_id: req.body.id,
+                nickname: req.body.name,
+                email: req.body.email,
                 token: uuid.v4(),
-                //喜歡的店家
-                favoriteCompany: JSON.stringify(favcomp)
-            }).then(function (user_data) {
-                res.json(user_data);
+                favoriteCompany: JSON.stringify(favcomp),
+                locale: req.body.locale,
+                link: req.body.link
+            }).then(function (user_data, b) {
+
+                downloadAvatar(user_data);
             });
         }
     });
+
+    function downloadAvatar(userdata) {
+        var options = {
+            directory: pictureDir,
+            filename: uuid.v4()
+        };
+        var thumb_filename = uuid.v4();
+        download(picture_url, options, function (err) {
+            if (err) {
+                res.status(400).send('download avatar error');
+            }
+            userdata.avatar = options.filename;
+            userdata.avatar_thumb = thumb_filename;
+            userdata.save();
+            //resize image
+            gm(pictureDir + options.filename)
+                .resizeExact(50, 50)
+                .write(pictureDir + thumb_filename,function(){});
+            
+            res.json(userdata);
+        });
+    }
 }
 
-function forgetPassword(req, res) {
-
-}
 
 // Add headers
 function accewssOrigin(req, res, next) {
