@@ -167,6 +167,7 @@ var initializeServer = function () {
     //app.post('/signup/', signup);
     //app.post('/login/', login);
     app.post('/login/facebook/', loginByFacebook);
+    app.post('/api/testToken/',testToken);
     app.get('/', test);
 };
 
@@ -454,6 +455,29 @@ function logger(req, res, next) {
     next();
 }
 
+//test token 
+function testToken(req, res) {
+    var token = req.headers.token;
+    if (token) {
+        User.findOne({
+            where: {
+                token: token
+            }
+        }).then(function (user) {
+            if (user) {
+                res.status(200).send();
+            } else {
+                testError();
+            }
+        });
+    } else {
+        testError();
+    }
+
+    function testError() {
+        res.status(401).send();
+    }
+}
 
 /*從 FACEBOOK 登入的
 {
@@ -505,7 +529,6 @@ function loginByFacebook(req, res) {
                 locale: req.body.locale,
                 link: req.body.link
             }).then(function (user_data, b) {
-
                 downloadAvatar(user_data);
             });
         }
@@ -517,20 +540,17 @@ function loginByFacebook(req, res) {
             filename: uuid.v4()
         };
         var thumb_filename = uuid.v4();
+        userdata.avatar = options.filename;
+        userdata.avatar_thumb = thumb_filename;
+        userdata.save();
         download(picture_url, options, function (err) {
             if (err) {
                 res.status(400).send('download avatar error');
             }
-            userdata.avatar = options.filename;
-            userdata.avatar_thumb = thumb_filename;
-            userdata.save();
             //resize image
-            gm(pictureDir + options.filename)
-                .resizeExact(50, 50)
-                .write(pictureDir + thumb_filename,function(){});
-            
-            res.json(userdata);
+            gm(pictureDir + options.filename).resizeExact(50, 50).write(pictureDir + thumb_filename, function () {});
         });
+        res.json(userdata);
     }
 }
 
