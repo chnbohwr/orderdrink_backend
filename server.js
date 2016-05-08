@@ -3,7 +3,8 @@
 var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
-var multer = require('multer')
+var multer = require('multer');
+var request = require('request');
 var fs = require('fs');
 var gm = require('gm').subClass({
     imageMagick: true
@@ -171,30 +172,29 @@ var start = function () {
  */
 var initializeServer = function () {
     app.use(express.static('pic'));
-    app.use(multer({
-        dest: './uploads/'
-    }))
-    app.use(bodyParser.json()); // to support JSON-encoded bodies
-    app.use(bodyParser.urlencoded({ // to support URL-encoded bodies
+    app.use(bodyParser.json());
+    app.use(bodyParser.urlencoded({
         extended: true
     }));
     app.use(accewssOrigin);
-    app.get('/api/location/', softCheckToken, getShopInfoByLocation);
-    app.get('/api/shop/:shop_id/menu/', softCheckToken, getMenuByShopId);
-    app.get('/api/shop/:shop_id/', softCheckToken, getShopData);
-    app.get('/api/shop/:shop_id/comment/', softCheckToken, getShopComment);
-    app.get('/api/comapnies/', softCheckToken, getComapnies)
-    app.get('/api/user/:user_id/', softCheckToken, getUserData);
-    app.post('/api/shop/:shop_id/comment/', checkToken, createShopComment);
-    app.post('/api/profile/', checkToken, setProfile);
-    app.post('/api/uploadAvatar/', checkToken, uploadAvatar);
-    app.post('/api/uploadBackground', checkToken, uploadBackground);
-    app.post('/api/uploadFavorite/', checkToken, uploadFavorite)
-    app.post('/api/report/', checkToken, reportApp);
+    app.use(checkToken);
+    app.use(logger);
+    app.get('/api/location/', getShopInfoByLocation);
+    app.get('/api/shop/:shop_id/menu/', getMenuByShopId);
+    app.get('/api/shop/:shop_id/', getShopData);
+    app.get('/api/shop/:shop_id/comment/', getShopComment);
+    app.get('/api/comapnies/', getComapnies)
+    app.get('/api/user/:user_id/', getUserData);
+    app.post('/api/shop/:shop_id/comment/', createShopComment);
+    app.post('/api/profile/', setProfile);
+    //app.post('/api/uploadAvatar/', uploadAvatar);
+    //app.post('/api/uploadBackground', uploadBackground);
+    app.post('/api/uploadFavorite/', uploadFavorite)
+    app.post('/api/report/', reportApp);
     app.post('/signup/', signup);
     app.post('/login/', login);
     app.post('/login/facebook/', loginByFacebook);
-    app.get('/', test)
+    app.get('/', test);
 };
 
 function test(req, res) {
@@ -217,53 +217,6 @@ function uploadFavorite(req, res) {
 
 function getComapnies(req, res) {
     res.json(companies);
-}
-
-
-function uploadAvatar(req, res) {
-    var filename = req.files.files.name;
-    var newpath = './pic/' + filename;
-    gm(req.files.files.path).resize(600).quality(50).strip().write(newpath + '_big.jpg', function (err) {
-        if (!err) {
-            gm(req.files.files.path).resize(200).quality(30).strip().write(newpath + '_small.jpg', function (err) {
-                if (!err) {
-                    var user_data = req.user_data;
-                    if (user_data.avatar) {
-                        fs.unlink('./pic/' + user_data.avatar, function () {});
-                        fs.unlink('./pic/' + user_data.avatar_thumb, function () {});
-                    }
-                    user_data.avatar_thumb = filename + '_small.jpg';
-                    user_data.avatar = filename + '_big.jpg';
-                    user_data.save();
-                    console.log('user_data', user_data);
-                    fs.unlink(req.files.files.path, function () {});
-                    res.json(user_data);
-                }
-            });
-        } else {
-            res.status(400).send('no ok');
-        }
-    })
-}
-
-
-function uploadBackground(req, res) {
-    var filename = req.files.files.name;
-    var newpath = './pic/' + filename;
-    gm(req.files.files.path).resize(800).quality(50).strip().write(newpath + '_back.jpg', function (err) {
-        if (!err) {
-            var user_data = req.user_data;
-            if (user_data.background) {
-                fs.unlink('./pic/' + user_data.background, function () {});
-            }
-            user_data.background = filename + '_back.jpg';
-            user_data.save();
-            fs.unlink(req.files.files.path, function () {});
-            res.json(user_data);
-        } else {
-            res.status(400).send('no ok');
-        }
-    })
 }
 
 //todo
@@ -474,32 +427,58 @@ function deleteComment(req, res) {
 //檢查token
 function checkToken(req, res, next) {
     var token = req.headers.token;
-    User.findOne({
+    
+    if (req.method === 'GET'){
+        if (token) {
+            check(true);
+        } else {
+            next();    
+        }
+        
+    } else {
+        check(false);
+    }
+    
+    function check(allow_pass){
+        User.findOne({
         where: {
             token: token
         }
-    }).then(function (data) {
-        if (data) {
-            req.user_data = data;
-            //pass data to next middleware
-            next();
-        } else {
-            res.status(401).send('no permission');
-        }
-    });
+        }).then(function (data) {
+            if (data) {
+                req.user_data = data;
+                //pass data to next middleware
+                next();
+            } else {
+                if (allow_pass === true) {
+                    next();     
+                } else {
+                    res.status(401).send('no permission');
+                }
+            }
+        });
+    }
+    
 }
 
-//不強制產生 error401 的檢查登入
-function softCheckToken (req, res, next){
-    var token = req.headers.token;
-    
-    //如果有 token 就直接用 checktoken 的功能
-    if(token) {
-        checkToken(req, res, next);
+function logger(req, res, next){
+    var nickname;
+    if (req.user_data){
+        nickname = req.user_data.nickname;
     } else {
-        next();
+        nickname = 'Anonymous';
     }
+    
+    console.log('Date: ' + new Date());
+    console.log('User: ' + nickname);
+    console.log('Token: ', req.headers.token);
+    console.log('IP: ' + req.ip);
+    console.log('Method: ' + req.method);
+    console.log('Path: ' + req.url);
+    console.log('======================================');
+    next();
 }
+
 
 //從 FACEBOOK 登入的
 //    {"id":"106191296386841","email":"imffqsz_zuckerson_1434104811@tfbnw.net","first_name":"Margaret","gender":"female","last_name":"Zuckerson","link":"https://www.facebook.com/app_scoped_user_id/106191296386841/","locale":"zh_TW","middle_name":"Amihgiabdejd","name":"Margaret Amihgiabdejd Zuckerson","timezone":0,"updated_time":"2015-06-12T10:27:01+0000","verified":false}
@@ -528,6 +507,8 @@ function loginByFacebook(req, res) {
         res.json(userdata);
     });
 }
+
+
 
 //用使用者名稱密碼登入
 function login(req, res) {
